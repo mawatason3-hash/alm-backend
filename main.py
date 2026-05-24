@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from database import connect_db, disconnect_db, create_tables
 from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads
+import models  # ensure SQLAlchemy Table metadata is registered
 
 load_dotenv()
 
@@ -25,7 +26,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-allowed_origins = ["*"]
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", frontend_url).split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,

@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable must be set")
 
 # Fix Railway PostgreSQL URL format if needed
 if DATABASE_URL.startswith("postgres://"):
