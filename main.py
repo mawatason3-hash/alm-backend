@@ -24,6 +24,7 @@ app = FastAPI(
     description="Association of Liberians in Musanze - Election Platform",
     version="1.0.0",
     lifespan=lifespan,
+    redirect_slashes=True,
 )
 
 allowed_origins = [
