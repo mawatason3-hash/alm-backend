@@ -26,12 +26,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 allowed_origins = [
     origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", frontend_url).split(",")
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+if not allowed_origins:
+    allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
