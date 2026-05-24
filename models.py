@@ -1,0 +1,118 @@
+from sqlalchemy import (
+    Table, Column, String, Boolean, DateTime, 
+    Text, ForeignKey, JSON, UniqueConstraint
+)
+from sqlalchemy.dialects.postgresql import UUID
+import sqlalchemy as sa
+from database import metadata
+import uuid
+
+users = Table("users", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, 
+           default=uuid.uuid4),
+    Column("full_name", Text, nullable=False),
+    Column("email", Text, unique=True, nullable=False),
+    Column("phone", Text, nullable=False),
+    Column("member_id", Text, unique=True, nullable=False),
+    Column("password_hash", Text, nullable=False),
+    Column("role", Text, default="member"),
+    Column("is_approved", Boolean, default=False),
+    Column("created_at", DateTime, 
+           default=sa.func.now()),
+)
+
+teams = Table("teams", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("name", Text, unique=True, nullable=False),
+    Column("description", Text),
+    Column("created_at", DateTime, default=sa.func.now()),
+)
+
+positions = Table("positions", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("title", Text, nullable=False),
+    Column("display_name", Text, nullable=False),
+    Column("is_combined", Boolean, default=False),
+    Column("team_id", UUID(as_uuid=True), 
+           ForeignKey("teams.id", ondelete="CASCADE")),
+)
+
+candidates = Table("candidates", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("team_id", UUID(as_uuid=True),
+           ForeignKey("teams.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("position_id", UUID(as_uuid=True),
+           ForeignKey("positions.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("full_name", Text, nullable=False),
+    Column("profile_picture", Text),
+    Column("party_affiliation", Text),
+    Column("previous_leadership", Text),
+    Column("letter_of_intent", Text),
+    Column("bio", Text),
+    Column("running_mate_name", Text),
+    Column("running_mate_picture", Text),
+    Column("running_mate_party", Text),
+    Column("running_mate_previous_leadership", Text),
+    Column("running_mate_letter_of_intent", Text),
+    Column("running_mate_bio", Text),
+    Column("created_at", DateTime, default=sa.func.now()),
+)
+
+votes = Table("votes", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("voter_id", UUID(as_uuid=True),
+           ForeignKey("users.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("candidate_id", UUID(as_uuid=True),
+           ForeignKey("candidates.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("position_id", UUID(as_uuid=True),
+           ForeignKey("positions.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("team_id", UUID(as_uuid=True),
+           ForeignKey("teams.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("voted_at", DateTime, default=sa.func.now()),
+    UniqueConstraint("voter_id", "position_id",
+                     name="unique_voter_position"),
+)
+
+election_settings = Table("election_settings", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("election_name", Text, nullable=False),
+    Column("is_active", Boolean, default=False),
+    Column("voting_start", DateTime),
+    Column("voting_end", DateTime),
+    Column("allow_registration", Boolean, default=True),
+    Column("created_by", UUID(as_uuid=True),
+           ForeignKey("users.id")),
+)
+
+audit_logs = Table("audit_logs", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("actor_id", UUID(as_uuid=True),
+           ForeignKey("users.id")),
+    Column("action", Text, nullable=False),
+    Column("metadata", JSON),
+    Column("created_at", DateTime, default=sa.func.now()),
+)
+
+reset_tokens = Table("reset_tokens", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("user_id", UUID(as_uuid=True),
+           ForeignKey("users.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("token", Text, unique=True, nullable=False),
+    Column("expires_at", DateTime, nullable=False),
+    Column("used", Boolean, default=False),
+    Column("created_at", DateTime, default=sa.func.now()),
+)
