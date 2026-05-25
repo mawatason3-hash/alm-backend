@@ -1,176 +1,192 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from database import database
-from models import users, audit_logs, reset_tokens
-from schemas import UserRegister, UserLogin, TokenResponse, ForgotPassword, ResetPassword
-from auth import hash_password, verify_password, create_access_token, get_current_user
-import sqlalchemy as sa
+from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+from jose import jwt
+from datetime import datetime, timedelta
+from typing import Optional
+import os
 import uuid
-import secrets
-from datetime import datetime, timedelta, timezone
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT settings
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 1 week
 
 router = APIRouter()
 
-@router.post("/register")
+# Pydantic schemas
+class UserRegister(BaseModel):
+    full_name: str
+    email: EmailStr
+    phone: str
+    member_id: str
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict
+
+# Helper functions
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# Import database connection
+from database import database
+from models import users, audit_logs
+
+
+@router.post("/register", status_code=201)
 async def register(body: UserRegister):
+    """
+    Register a new member
+    """
     try:
-        # Check email unique
+        # Check if email already exists
         existing_email = await database.fetch_one(
             users.select().where(users.c.email == body.email)
         )
         if existing_email:
-            raise HTTPException(400, "Email already registered")
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered"
+            )
 
-        # Check member ID unique
-        existing_member = await database.fetch_one(
+        # Check if member_id already exists
+        existing_member_id = await database.fetch_one(
             users.select().where(users.c.member_id == body.member_id)
         )
-        if existing_member:
-            raise HTTPException(400, "Member ID already registered")
+        if existing_member_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Member ID already registered"
+            )
 
-        hashed = hash_password(body.password)
+        # Hash password
+        password_hash = hash_password(body.password)
 
-        # Insert user
+        # Create new user
         user_id = uuid.uuid4()
-        await database.execute(users.insert().values(
+        query = users.insert().values(
             id=user_id,
             full_name=body.full_name,
             email=body.email,
             phone=body.phone,
             member_id=body.member_id,
-            password_hash=hashed,
+            password_hash=password_hash,
             role="member",
             is_approved=False,
-        ))
+        )
+        await database.execute(query)
 
-        # Log
-        await database.execute(audit_logs.insert().values(
+        # Log registration
+        audit_query = audit_logs.insert().values(
             id=uuid.uuid4(),
             actor_id=user_id,
             action="MEMBER_REGISTERED",
-            metadata={
-                "email": body.email,
-                "phone": body.phone,
-                "member_id": body.member_id,
-            }
-        ))
-
-        return {"message": "Registration submitted. Await admin approval."}
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(500, f"Registration failed: {str(e)}")
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login(body: UserLogin):
-    try:
-        user = await database.fetch_one(
-            users.select().where(users.c.email == body.email)
+            metadata={"email": body.email}
         )
-
-        if not user:
-            raise HTTPException(401, "Invalid email or password")
-
-        if not verify_password(body.password, user["password_hash"]):
-            raise HTTPException(401, "Invalid email or password")
-
-        if not user["is_approved"] and user["role"] != "admin":
-            raise HTTPException(403, "Account pending admin approval")
-
-        token = create_access_token({"sub": str(user["id"]), "role": user["role"]})
+        await database.execute(audit_query)
 
         return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": dict(user)
+            "success": True,
+            "message": "Registration submitted. Await admin approval.",
+            "user_id": str(user_id)
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Login failed: {str(e)}")
+        print(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 
-@router.get("/me")
-async def get_me(current_user=Depends(get_current_user)):
-    return dict(current_user)
-
-
-@router.post("/forgot-password")
-async def forgot_password(body: ForgotPassword):
+@router.post("/login", response_model=TokenResponse)
+async def login(body: UserLogin):
+    """
+    Login and get access token
+    """
     try:
+        # Find user by email
         user = await database.fetch_one(
             users.select().where(users.c.email == body.email)
         )
-        # Always return same message for security
-        if user:
-            token = secrets.token_hex(32)
-            expires = datetime.now(timezone.utc) + timedelta(hours=1)
-            await database.execute(
-                reset_tokens.delete().where(
-                    reset_tokens.c.user_id == user["id"]
-                )
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
             )
-            await database.execute(reset_tokens.insert().values(
-                id=uuid.uuid4(),
-                user_id=user["id"],
-                token=token,
-                expires_at=expires,
-                used=False,
-            ))
-            # TODO: Send email with reset link
-            # reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
-        return {"message": "If email exists a reset link has been sent."}
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
-
-@router.post("/reset-password")
-async def reset_password(body: ResetPassword):
-    try:
-        token_row = await database.fetch_one(
-            reset_tokens.select().where(
-                sa.and_(
-                    reset_tokens.c.token == body.token,
-                    reset_tokens.c.used == False,
-                    reset_tokens.c.expires_at > datetime.now(timezone.utc)
-                )
+        # Verify password
+        if not verify_password(body.password, user["password_hash"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
             )
-        )
-        if not token_row:
-            raise HTTPException(400, "Invalid or expired reset link")
 
-        if not isinstance(body.password, str):
-            raise HTTPException(400, "Password must be a string")
-        if len(body.password.encode('utf-8')) > 72:
-            raise HTTPException(400, "Password cannot be longer than 72 bytes")
-        if body.password.startswith(("$2a$", "$2b$", "$2y$")) and len(body.password) >= 60:
-            raise HTTPException(400, "Password appears to already be hashed; submit plain-text password")
+        # Check if approved (except for admin)
+        if not user["is_approved"] and user["role"] != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Account pending admin approval"
+            )
 
-        hashed = hash_password(body.password)
-        await database.execute(
-            users.update()
-            .where(users.c.id == token_row["user_id"])
-            .values(password_hash=hashed)
-        )
-        await database.execute(
-            reset_tokens.update()
-            .where(reset_tokens.c.id == token_row["id"])
-            .values(used=True)
-        )
-        await database.execute(audit_logs.insert().values(
-            id=uuid.uuid4(),
-            actor_id=token_row["user_id"],
-            action="PASSWORD_RESET",
-            metadata={}
-        ))
-        return {"message": "Password reset successful"}
+        # Create access token
+        token_data = {
+            "sub": str(user["id"]),
+            "email": user["email"],
+            "role": user["role"]
+        }
+        access_token = create_access_token(token_data)
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(user["id"]),
+                "name": user["full_name"],
+                "email": user["email"],
+                "role": user["role"],
+                "is_approved": user["is_approved"]
+            }
+        }
+
     except HTTPException:
         raise
-    except ValueError as e:
-        raise HTTPException(400, str(e))
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Login failed: {str(e)}"
+        )
+
+
+@router.get("/health")
+async def health_check():
+    """
+    Health check endpoint
+    """
+    return {"status": "healthy", "service": "auth"}
