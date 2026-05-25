@@ -31,13 +31,9 @@ app = FastAPI(
     redirect_slashes=True,
 )
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-if not allowed_origins:
-    allowed_origins = ["*"]
+# Allow all origins for frontend hosting platforms like Netlify.
+# This is intentionally broad for migration readiness.
+allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
