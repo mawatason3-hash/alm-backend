@@ -13,9 +13,19 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-database = Database(DATABASE_URL)
+database = Database(
+    DATABASE_URL,
+    min_size=int(os.getenv("DB_MIN_SIZE", 1)),
+    max_size=int(os.getenv("DB_MAX_SIZE", 10)),
+    timeout=30,
+)
 metadata = MetaData()
-engine = create_engine(DATABASE_URL.replace("+asyncpg", ""))
+engine = create_engine(
+    DATABASE_URL.replace("+asyncpg", ""),
+    pool_pre_ping=True,
+    pool_size=int(os.getenv("DB_POOL_SIZE", 5)),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", 10)),
+)
 
 async def connect_db():
     await database.connect()

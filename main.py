@@ -31,9 +31,16 @@ app = FastAPI(
     redirect_slashes=True,
 )
 
-# Allow all origins for frontend hosting platforms like Netlify.
-# This is intentionally broad for migration readiness.
+# Allow all origins by default so the frontend can migrate to Netlify without CORS failures.
+# If you want to lock this down later, set ALLOWED_ORIGINS in env as a comma-separated list.
 allowed_origins = ["*"]
+custom_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if custom_origins:
+    allowed_origins = custom_origins
 
 app.add_middleware(
     CORSMiddleware,
