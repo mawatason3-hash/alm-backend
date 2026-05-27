@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
 from database import database
-from models import candidates, audit_logs
+from models import candidates, teams, positions, audit_logs
 from auth import get_current_admin
 from upload_helper import save_upload_file
 import sqlalchemy as sa
@@ -60,6 +60,14 @@ async def add_candidate(
             mate_url = await save_upload_file(running_mate_picture)
         elif running_mate_picture_url:
             mate_url = running_mate_picture_url
+
+        team_exists = await database.fetch_one(teams.select().where(teams.c.id == team_id))
+        if not team_exists:
+            raise HTTPException(400, "Selected team does not exist")
+
+        position_exists = await database.fetch_one(positions.select().where(positions.c.id == position_id))
+        if not position_exists:
+            raise HTTPException(400, "Selected position does not exist")
 
         candidate_id = uuid.uuid4()
         await database.execute(candidates.insert().values(

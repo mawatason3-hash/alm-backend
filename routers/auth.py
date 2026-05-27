@@ -139,7 +139,7 @@ async def login(body: UserLogin):
             "token_type": "bearer",
             "user": {
                 "id": str(user["id"]),
-                "name": user["full_name"],
+                "full_name": user["full_name"],
                 "email": user["email"],
                 "role": user["role"],
                 "is_approved": user["is_approved"]
