@@ -12,6 +12,11 @@ oauth2_optional = OAuth2PasswordBearer(
     tokenUrl="/api/auth/login", auto_error=False
 )
 
+def escape_csv(value: str | None) -> str:
+    if value is None:
+        return ''
+    return '"' + str(value).replace('"', '""') + '"'
+
 @router.get("/")
 async def get_results(token: str = Depends(oauth2_optional)):
     try:
@@ -123,21 +128,20 @@ async def export_results_csv(token: str = Depends(oauth2_optional)):
         candidates_result = await database.fetch_all(results_query)
 
         # Build CSV lines
-        lines = ["Team,Position,Candidate Name,Votes"]
+        lines = ["Team,Position,Candidate Name,Running Mate,Votes"]
         for r in candidates_result:
             team = r['team_name'] or ''
+            position = r.get('position_name') or r.get('position_title') or ''
             is_combined = bool(r.get('is_combined'))
             votes = int(r.get('vote_count') or 0)
             if is_combined:
-                # For combined tickets, output President and Vice President rows
-                pres_name = r.get('full_name') or ''
-                vp_name = r.get('running_mate_name') or ''
-                lines.append(f'"{team}","President","{pres_name}",{votes}')
-                lines.append(f'"{team}","Vice President","{vp_name}",{votes}')
+                lines.append(
+                    f"{escape_csv(team)},{escape_csv(position)},{escape_csv(r.get('full_name') or '')},{escape_csv(r.get('running_mate_name') or '')},{votes}"
+                )
             else:
-                pos = r.get('position_name') or r.get('position_title') or ''
-                cand = r.get('full_name') or ''
-                lines.append(f'"{team}","{pos}","{cand}",{votes}')
+                lines.append(
+                    f"{escape_csv(team)},{escape_csv(position)},{escape_csv(r.get('full_name') or '')},,{votes}"
+                )
 
         content = "\n".join(lines)
         return Response(content=content, media_type='text/csv')

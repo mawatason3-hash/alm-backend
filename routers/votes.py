@@ -19,12 +19,24 @@ async def cast_vote(body: VoteCreate, current_user=Depends(get_current_user)):
         if not settings or not settings["is_active"]:
             raise HTTPException(403, "Voting is not currently open")
 
-        # Check not already voted for this position
+        # Validate requested position and enforce one vote per position title across all teams
+        position = await database.fetch_one(
+            positions.select().where(positions.c.id == str(body.position_id))
+        )
+        if not position:
+            raise HTTPException(404, "Position not found")
+
+        position_title = position["title"] or position["display_name"]
+        if not position_title:
+            raise HTTPException(400, "Invalid position")
+
         existing = await database.fetch_one(
-            votes.select().where(
+            sa.select(votes.c.id)
+            .select_from(votes.join(positions, votes.c.position_id == positions.c.id))
+            .where(
                 sa.and_(
                     votes.c.voter_id == current_user["id"],
-                    votes.c.position_id == str(body.position_id)
+                    positions.c.title == position_title
                 )
             )
         )
@@ -72,7 +84,7 @@ async def get_my_votes(current_user=Depends(get_current_user)):
         )
 
         return {
-            "voted_positions": [str(r["position_id"]) for r in result],
+            "voted_positions": [str(r["position_title"]) for r in result],
             "voted_candidates": [str(r["candidate_id"]) for r in result],
             "voted_titles": [str(r["position_title"]) for r in result],
         }

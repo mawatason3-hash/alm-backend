@@ -25,6 +25,9 @@ async def get_stats(admin=Depends(get_current_admin)):
         total_votes = await database.fetch_one(
             sa.select(sa.func.count()).select_from(votes)
         )
+        distinct_voters = await database.fetch_one(
+            sa.select(sa.func.count(sa.distinct(votes.c.voter_id))).select_from(votes)
+        )
         pending = await database.fetch_one(
             sa.select(sa.func.count()).select_from(users)
             .where(
@@ -35,8 +38,9 @@ async def get_stats(admin=Depends(get_current_admin)):
 
         approved_count = approved[0]
         votes_count = total_votes[0]
+        unique_voter_count = distinct_voters[0]
         turnout = round(
-            (votes_count / approved_count * 100) 
+            (unique_voter_count / approved_count * 100) 
             if approved_count > 0 else 0, 1
         )
 
