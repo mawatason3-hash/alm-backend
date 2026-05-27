@@ -38,7 +38,7 @@ async def cast_vote(body: VoteCreate, current_user=Depends(get_current_user)):
             candidate_id=str(body.candidate_id),
             position_id=str(body.position_id),
             team_id=str(body.team_id),
-            voted_at=datetime.now(timezone.utc),
+            voted_at=datetime.utcnow(),
         ))
 
         await database.execute(audit_logs.insert().values(
