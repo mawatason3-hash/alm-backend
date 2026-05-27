@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,12 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import os
-from dotenv import load_dotenv
 from database import connect_db, disconnect_db, create_tables
 from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads
 import models  # ensure SQLAlchemy Table metadata is registered
-
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

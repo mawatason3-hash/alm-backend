@@ -13,6 +13,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
 
+if SECRET_KEY == "fallback-secret":
+    print("[WARNING] SECRET_KEY is not set; auth tokens will be signed with a fallback secret.")
+
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

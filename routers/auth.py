@@ -1,19 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
-from jose import jwt
-from datetime import datetime, timedelta
-from typing import Optional
-import os
 import uuid
-
-# Password hashing
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-
-# JWT settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 1 week
+from auth import create_access_token, hash_password, verify_password
 
 router = APIRouter()
 
@@ -33,22 +21,6 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict
-
-# Helper functions
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
-
-
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Import database connection
 from database import database
