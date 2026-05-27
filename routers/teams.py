@@ -212,31 +212,10 @@ async def create_full_team(
             metadata={'team_name': name}
         ))
 
-        candidate_count = 3
-        return {
-            "id": str(team_id),
-            "name": name,
-            "description": description,
-            "candidate_count": candidate_count,
-        }
+        return {"id": str(team_id), "name": name, "description": description}
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-@router.get("/{team_id}/candidates")
-async def get_team_candidates(team_id: str):
-    try:
-        query = sa.text('''
-            SELECT c.*, p.display_name as position_name, p.title as position_title, p.is_combined
-            FROM candidates c
-            JOIN positions p ON p.id = c.position_id
-            WHERE c.team_id = :team_id
-            ORDER BY p.title
-        ''')
-        result = await database.fetch_all(query, values={"team_id": team_id})
-        return [dict(r) for r in result]
     except Exception as e:
         raise HTTPException(500, str(e))
 
