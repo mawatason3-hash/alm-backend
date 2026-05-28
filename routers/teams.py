@@ -3,7 +3,7 @@ from database import database
 from models import teams, positions, candidates, audit_logs
 from schemas import TeamCreate, TeamUpdate
 from auth import get_current_admin
-from upload_helper import save_upload_file
+from upload_helper import upload_image
 import sqlalchemy as sa
 import uuid
 
@@ -149,22 +149,42 @@ async def create_full_team(
         sec_url = None
         fin_url = None
         if president_image:
-            pres_url = await save_upload_file(president_image)
+            file_bytes = await president_image.read()
+            pres_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=president_image.filename,
+                folder="candidates"
+            )
         elif president_image_url:
             pres_url = president_image_url
 
         if vp_image:
-            vp_url = await save_upload_file(vp_image)
+            file_bytes = await vp_image.read()
+            vp_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=vp_image.filename,
+                folder="candidates"
+            )
         elif vp_image_url:
             vp_url = vp_image_url
 
         if secretary_image:
-            sec_url = await save_upload_file(secretary_image)
+            file_bytes = await secretary_image.read()
+            sec_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=secretary_image.filename,
+                folder="candidates"
+            )
         elif secretary_image_url:
             sec_url = secretary_image_url
 
         if financial_secretary_image:
-            fin_url = await save_upload_file(financial_secretary_image)
+            file_bytes = await financial_secretary_image.read()
+            fin_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=financial_secretary_image.filename,
+                folder="candidates"
+            )
         elif financial_secretary_image_url:
             fin_url = financial_secretary_image_url
 

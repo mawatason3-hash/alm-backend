@@ -3,7 +3,7 @@ from typing import Optional
 from database import database
 from models import candidates, teams, positions, audit_logs
 from auth import get_current_admin
-from upload_helper import save_upload_file
+from upload_helper import upload_image
 import sqlalchemy as sa
 import uuid
 
@@ -51,13 +51,23 @@ async def add_candidate(
     try:
         profile_url = None
         if profile_picture:
-            profile_url = await save_upload_file(profile_picture)
+            file_bytes = await profile_picture.read()
+            profile_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=profile_picture.filename,
+                folder="candidates"
+            )
         elif profile_picture_url:
             profile_url = profile_picture_url
 
         mate_url = None
         if running_mate_picture:
-            mate_url = await save_upload_file(running_mate_picture)
+            file_bytes = await running_mate_picture.read()
+            mate_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=running_mate_picture.filename,
+                folder="candidates"
+            )
         elif running_mate_picture_url:
             mate_url = running_mate_picture_url
 

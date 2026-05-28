@@ -1,18 +1,12 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr
 import uuid
 from auth import create_access_token, hash_password, verify_password
+from upload_helper import upload_image
 
 router = APIRouter()
 
 # Pydantic schemas
-class UserRegister(BaseModel):
-    full_name: str
-    email: EmailStr
-    phone: str
-    member_id: str
-    password: str
-
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
@@ -28,14 +22,20 @@ from models import users, audit_logs
 
 
 @router.post("/register", status_code=201)
-async def register(body: UserRegister):
+async def register(
+    full_name: str = Form(...),
+    email: EmailStr = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    photo: UploadFile = File(...)
+):
     """
-    Register a new member
+    Register a new member with photo upload
     """
     try:
         # Check if email already exists
         existing_email = await database.fetch_one(
-            users.select().where(users.c.email == body.email)
+            users.select().where(users.c.email == email)
         )
         if existing_email:
             raise HTTPException(
@@ -43,30 +43,31 @@ async def register(body: UserRegister):
                 detail="Email already registered"
             )
 
-        # Check if member_id already exists
-        existing_member_id = await database.fetch_one(
-            users.select().where(users.c.member_id == body.member_id)
-        )
-        if existing_member_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Member ID already registered"
+        # Save photo
+        photo_url = None
+        if photo:
+            file_bytes = await photo.read()
+            photo_url = upload_image(
+                file_bytes=file_bytes,
+                original_filename=photo.filename,
+                folder="voters"
             )
 
         # Hash password
-        password_hash = hash_password(body.password)
+        password_hash = hash_password(password)
 
         # Create new user
         user_id = uuid.uuid4()
         query = users.insert().values(
             id=user_id,
-            full_name=body.full_name,
-            email=body.email,
-            phone=body.phone,
-            member_id=body.member_id,
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            member_id=None,
             password_hash=password_hash,
             role="member",
             is_approved=False,
+            photo_url=photo_url,
         )
         await database.execute(query)
 
@@ -75,14 +76,15 @@ async def register(body: UserRegister):
             id=uuid.uuid4(),
             actor_id=user_id,
             action="MEMBER_REGISTERED",
-            metadata={"email": body.email}
+            metadata={"email": email}
         )
         await database.execute(audit_query)
 
         return {
             "success": True,
-            "message": "Registration submitted. Await admin approval.",
-            "user_id": str(user_id)
+            "message": "Registration submitted! Admin will review and approve your account.",
+            "user_id": str(user_id),
+            "photo_url": photo_url
         }
 
     except HTTPException:

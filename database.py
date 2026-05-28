@@ -1,9 +1,14 @@
+import logging
 import os
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
 from databases import Database
 from sqlalchemy import create_engine, MetaData
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -12,6 +17,16 @@ if not DATABASE_URL:
 # Fix Railway PostgreSQL URL format if needed
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Support optional TLS for managed Postgres providers.
+# Set DB_SSL=true in .env or environment variables when the server requires SSL.
+DB_SSL = os.getenv("DB_SSL", "").strip().lower()
+if DB_SSL in {"1", "true", "yes"}:
+    parsed_url = urlparse(DATABASE_URL)
+    query = dict(parse_qsl(parsed_url.query, keep_blank_values=True))
+    query["ssl"] = "true"
+    DATABASE_URL = urlunparse(parsed_url._replace(query=urlencode(query, doseq=True)))
+    logger.info("Using database URL with ssl=true")
 
 database = Database(
     DATABASE_URL,
@@ -28,10 +43,17 @@ engine = create_engine(
 )
 
 async def connect_db():
-    await database.connect()
-    
+    try:
+        await database.connect()
+    except Exception as exc:
+        logger.error("Database connection failed: %s", exc, exc_info=True)
+        raise
+
 async def disconnect_db():
-    await database.disconnect()
+    try:
+        await database.disconnect()
+    except Exception as exc:
+        logger.warning("Database disconnect failed: %s", exc, exc_info=True)
 
 def create_tables():
     metadata.create_all(engine)

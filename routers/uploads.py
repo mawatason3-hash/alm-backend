@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from auth import get_current_admin
-from upload_helper import save_upload_file
+from upload_helper import upload_image
 
 router = APIRouter()
 
@@ -10,7 +10,12 @@ async def upload_image(file: UploadFile = File(...), admin=Depends(get_current_a
         raise HTTPException(400, 'Only image files are supported for upload.')
 
     try:
-        path = await save_upload_file(file)
+        file_bytes = await file.read()
+        path = upload_image(
+            file_bytes=file_bytes,
+            original_filename=file.filename,
+            folder='general'
+        )
         return {'path': path}
     except Exception as exc:
         raise HTTPException(500, f'Failed to save upload: {exc}')

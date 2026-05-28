@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import os
 from database import connect_db, disconnect_db, create_tables
-from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads
+from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads, support, access_requests, settings
 import models  # ensure SQLAlchemy Table metadata is registered
 
 @asynccontextmanager
@@ -71,9 +71,13 @@ app.include_router(positions.router, prefix="/api/positions", tags=["Positions"]
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(votes.router, prefix="/api/votes", tags=["Votes"])
+app.include_router(votes.voter_router, prefix="/api/voter", tags=["Voter"])
 app.include_router(results.router, prefix="/api/results", tags=["Results"])
 app.include_router(election.router, prefix="/api/election", tags=["Election"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(support.router, prefix="/api/support", tags=["Support"])
+app.include_router(access_requests.router, prefix="/api/access-requests", tags=["AccessRequests"])
+app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 
 @app.get("/")
 async def root():

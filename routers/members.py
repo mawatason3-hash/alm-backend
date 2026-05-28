@@ -14,12 +14,14 @@ async def get_members(admin=Depends(get_current_admin)):
         query = sa.text("""
             SELECT u.id, u.full_name, u.email, u.phone, 
                    u.member_id, u.role, u.is_approved, u.created_at,
+                   u.photo_url,
                    COUNT(DISTINCT v.position_id) as positions_voted
             FROM users u
             LEFT JOIN votes v ON v.voter_id = u.id
             WHERE u.role = 'member'
             GROUP BY u.id, u.full_name, u.email, u.phone,
-                     u.member_id, u.role, u.is_approved, u.created_at
+                     u.member_id, u.role, u.is_approved, u.created_at,
+                     u.photo_url
             ORDER BY u.created_at DESC
         """)
         result = await database.fetch_all(query)
