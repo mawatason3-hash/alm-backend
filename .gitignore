@@ -5,3 +5,11 @@ __pycache__/
 .verify_env/
 
 .verify_env2/
+
+.temp_build_env3/
+.chat-history/
+alm-backend/.temp_build_env3/
+alm-backend/.chat-history/
+
+.temp_build_env3/
+.chat-history/
