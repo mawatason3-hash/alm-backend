@@ -6,7 +6,7 @@ sqlalchemy==2.0.29
 alembic==1.13.1
 python-jose[cryptography]==3.3.0
 passlib[argon2]==1.7.4
-python-multipart==0.0.6
+python-multipart==0.0.7
 cloudinary==1.40.0
 supabase==1.2.0
 python-dotenv==1.0.1
