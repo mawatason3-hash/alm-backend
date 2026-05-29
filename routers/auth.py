@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr
+import traceback
 import uuid
 from auth import create_access_token, hash_password, verify_password
 from upload_helper import upload_image
@@ -89,11 +90,11 @@ async def register(
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Registration error: {str(e)}")
+    except Exception:
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail=f"Registration failed: {str(e)}"
+            detail="Registration failed due to an internal server error."
         )
 
 
