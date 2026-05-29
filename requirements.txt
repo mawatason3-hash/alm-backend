@@ -9,6 +9,7 @@ passlib[argon2]==1.7.4
 python-multipart==0.0.7
 cloudinary==1.40.0
 supabase==1.2.0
+postgrest==0.11.0
 python-dotenv==1.0.1
 pydantic==2.7.1
 pydantic-settings==2.2.1
