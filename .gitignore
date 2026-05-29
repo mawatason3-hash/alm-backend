@@ -3,3 +3,5 @@ __pycache__/
 .env
 
 .verify_env/
+
+.verify_env2/
