@@ -3,6 +3,7 @@ load_dotenv()
 
 import logging
 import os
+import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -26,116 +27,44 @@ async def lifespan(app: FastAPI):
     yield
     await disconnect_db()
 
-os.makedirs(os.path.join("static", "uploads"), exist_ok=True)
+# 1. Initialize the FastAPI app with our lifespan setup
+app = FastAPI(title="ALM Voting System Backend", lifespan=lifespan)
 
-app = FastAPI(
-    title="ALM Voting System API",
-    description="Association of Liberians in Musanze - Election Platform",
-    version="1.0.0",
-    lifespan=lifespan,
-    redirect_slashes=True,
-)
-
-# Allow all origins by default so the frontend can migrate to Netlify without CORS failures.
-# If you want to lock this down later, set ALLOWED_ORIGINS in env as a comma-separated list.
-allowed_origins = ["*"]
-custom_origins = [
-    origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-if custom_origins:
-    allowed_origins = custom_origins
-
+# 2. Add CORS Middleware so your Next.js Vercel frontend can connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=False,
+    allow_origins=["https://alm-voting-system.vercel.app", "http://localhost:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    return JSONResponse({"detail": exc.detail or "Not Found"}, status_code=exc.status_code)
+# 3. Add the Debug Endpoint Route right here
+@app.get("/debug/info")
+def get_debug_info():
+    if os.getenv("DEBUG", "").strip().lower() not in {"1", "true", "yes"}:
+        raise HTTPException(status_code=404, detail="Not Found")
+        
+    return {
+        "status": "healthy",
+        "debug_mode": True,
+        "database_url_configured": bool(os.getenv("DATABASE_URL")),
+        "supabase_url_configured": bool(os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")),
+        "python_version": sys.version,
+        "environment": os.getenv("RAILWAY_ENVIRONMENT", "production")
+    }
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse({"detail": exc.errors()}, status_code=422)
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
-    payload = {"detail": str(exc)}
-    if DEBUG:
-        payload["debug"] = {
-            "exception_type": type(exc).__name__,
-            "exception": repr(exc),
-        }
-    return JSONResponse(payload, status_code=500)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+# 4. Include all your application router endpoints
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(members.router, prefix="/api/members", tags=["Members"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(positions.router, prefix="/api/positions", tags=["Positions"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
-app.include_router(uploads.router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(votes.router, prefix="/api/votes", tags=["Votes"])
-app.include_router(votes.voter_router, prefix="/api/voter", tags=["Voter"])
 app.include_router(results.router, prefix="/api/results", tags=["Results"])
 app.include_router(election.router, prefix="/api/election", tags=["Election"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(uploads.router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(support.router, prefix="/api/support", tags=["Support"])
-app.include_router(access_requests.router, prefix="/api/access-requests", tags=["AccessRequests"])
+app.include_router(access_requests.router, prefix="/api/access-requests", tags=["Access Requests"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
-
-@app.get("/")
-async def root():
-    return {
-        "message": "ALM Voting System API",
-        "status": "running",
-        "docs": "/docs"
-    }
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
-@app.get("/debug/info")
-async def debug_info():
-    if not DEBUG:
-        raise HTTPException(status_code=404, detail="Not found")
-
-    package_versions = {}
-    for package_name in ["fastapi", "uvicorn", "supabase", "storage3", "gotrue", "sqlalchemy", "databases"]:
-        try:
-            module = __import__(package_name)
-            package_versions[package_name] = getattr(module, "__version__", "unknown")
-        except Exception:
-            package_versions[package_name] = "missing"
-
-    return {
-        "debug": True,
-        "env": {
-            "DATABASE_URL_set": bool(os.getenv("DATABASE_URL")),
-            "SUPABASE_URL_set": bool(os.getenv("SUPABASE_URL")),
-            "NEXT_PUBLIC_SUPABASE_URL_set": bool(os.getenv("NEXT_PUBLIC_SUPABASE_URL")),
-            "SUPABASE_KEY_set": bool(os.getenv("SUPABASE_KEY")),
-            "NEXT_PUBLIC_SUPABASE_KEY_set": bool(os.getenv("NEXT_PUBLIC_SUPABASE_KEY")),
-            "BUCKET_NAME": os.getenv("BUCKET_NAME") or os.getenv("NEXT_PUBLIC_SUPABASE_BUCKET") or "election-media",
-        },
-        "packages": package_versions,
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    import os
-
-    port = int(os.getenv("PORT", 8000))
-    host = "0.0.0.0"
-    print(f"[SERVER STARTUP] Binding to host: {host} on port: {port}")
-    # bind to 0.0.0.0 to be reachable externally on hosting platforms
-    uvicorn.run("main:app", host=host, port=port)
