@@ -3,7 +3,16 @@ import traceback
 import uuid
 from typing import Any, Optional, Tuple, Union
 
-BUCKET_NAME = os.environ.get("BUCKET_NAME", "election-media")
+
+def _get_env_var(*names: str, default: Optional[str] = None) -> Optional[str]:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            print(f"Using env var {name} for Supabase configuration")
+            return value
+    return default
+
+BUCKET_NAME = _get_env_var("BUCKET_NAME", "NEXT_PUBLIC_SUPABASE_BUCKET", default="election-media")
 
 _supabase_client = None
 _SUPABASE_AVAILABLE = False
@@ -40,8 +49,8 @@ def _init_supabase_client() -> Tuple[Optional[object], bool]:
     if _supabase_client is not None:
         return _supabase_client, _SUPABASE_AVAILABLE
 
-    SUPABASE_URL = os.environ.get("SUPABASE_URL")
-    SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+    SUPABASE_URL = _get_env_var("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
+    SUPABASE_KEY = _get_env_var("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_KEY")
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         _supabase_client = None

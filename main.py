@@ -1,7 +1,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI
+import logging
+import os
+
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
@@ -9,10 +12,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
-import os
 from database import connect_db, disconnect_db, create_tables
 from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads, support, access_requests, settings
 import models  # ensure SQLAlchemy Table metadata is registered
+
+logger = logging.getLogger(__name__)
+DEBUG = os.getenv("DEBUG", "").strip().lower() in {"1", "true", "yes"}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -60,7 +65,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    return JSONResponse({"detail": str(exc)}, status_code=500)
+    logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
+    payload = {"detail": str(exc)}
+    if DEBUG:
+        payload["debug"] = {
+            "exception_type": type(exc).__name__,
+            "exception": repr(exc),
+        }
+    return JSONResponse(payload, status_code=500)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -90,6 +102,32 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+@app.get("/debug/info")
+async def debug_info():
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    package_versions = {}
+    for package_name in ["fastapi", "uvicorn", "supabase", "storage3", "gotrue", "sqlalchemy", "databases"]:
+        try:
+            module = __import__(package_name)
+            package_versions[package_name] = getattr(module, "__version__", "unknown")
+        except Exception:
+            package_versions[package_name] = "missing"
+
+    return {
+        "debug": True,
+        "env": {
+            "DATABASE_URL_set": bool(os.getenv("DATABASE_URL")),
+            "SUPABASE_URL_set": bool(os.getenv("SUPABASE_URL")),
+            "NEXT_PUBLIC_SUPABASE_URL_set": bool(os.getenv("NEXT_PUBLIC_SUPABASE_URL")),
+            "SUPABASE_KEY_set": bool(os.getenv("SUPABASE_KEY")),
+            "NEXT_PUBLIC_SUPABASE_KEY_set": bool(os.getenv("NEXT_PUBLIC_SUPABASE_KEY")),
+            "BUCKET_NAME": os.getenv("BUCKET_NAME") or os.getenv("NEXT_PUBLIC_SUPABASE_BUCKET") or "election-media",
+        },
+        "packages": package_versions,
+    }
 
 
 if __name__ == "__main__":
