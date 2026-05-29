@@ -3,7 +3,7 @@ import os
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from databases import Database
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, MetaData, inspect, text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -57,3 +57,18 @@ async def disconnect_db():
 
 def create_tables():
     metadata.create_all(engine)
+    ensure_users_photo_url()
+
+
+def ensure_users_photo_url():
+    """Ensure the deployed users table has the photo_url column."""
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "photo_url" in existing_columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
