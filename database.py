@@ -57,18 +57,19 @@ async def disconnect_db():
 
 def create_tables():
     metadata.create_all(engine)
-    ensure_users_photo_url()
+    ensure_users_columns()
 
 
-def ensure_users_photo_url():
-    """Ensure the deployed users table has the photo_url column."""
+def ensure_users_columns():
+    """Ensure the deployed users table has required optional columns for registration and face enrollment."""
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
         return
 
     existing_columns = {col["name"] for col in inspector.get_columns("users")}
-    if "photo_url" in existing_columns:
-        return
 
     with engine.begin() as connection:
-        connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
+        if "photo_url" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
+        if "face_descriptor" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "face_descriptor" TEXT'))

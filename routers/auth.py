@@ -58,14 +58,13 @@ async def register(
         # Hash password
         password_hash = hash_password(password)
 
-        # Create new user
+        # Create new user. Face recognition is not part of registration.
         user_id = uuid.uuid4()
         query = users.insert().values(
             id=user_id,
             full_name=full_name,
             email=email,
             phone=phone,
-            member_id=None,
             password_hash=password_hash,
             role="member",
             is_approved=False,
