@@ -1,4 +1,6 @@
 import os
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr
 import traceback
@@ -29,7 +31,7 @@ async def register(
     email: EmailStr = Form(...),
     phone: str = Form(...),
     password: str = Form(...),
-    photo: UploadFile = File(...)
+    photo: Optional[UploadFile] = File(None)
 ):
     """
     Register a new member with photo upload
@@ -45,15 +47,18 @@ async def register(
                 detail="Email already registered"
             )
 
-        # Save photo
         photo_url = None
-        if photo:
-            file_bytes = await photo.read()
-            photo_url = upload_image(
-                file_bytes=file_bytes,
-                original_filename=photo.filename,
-                folder="voters"
-            )
+        if photo and getattr(photo, 'filename', None):
+            try:
+                file_bytes = await photo.read()
+                photo_url = upload_image(
+                    file_bytes=file_bytes,
+                    original_filename=photo.filename,
+                    folder="voters"
+                )
+            except Exception as exc:
+                print(f"Photo upload failed, continuing without photo: {exc}")
+                photo_url = None
 
         # Hash password
         password_hash = hash_password(password)

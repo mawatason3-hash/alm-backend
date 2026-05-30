@@ -3,6 +3,8 @@ import traceback
 import uuid
 from typing import Any, Optional, Tuple, Union
 
+import httpx
+
 
 def _get_env_var(*names: str, default: Optional[str] = None) -> Optional[str]:
     for name in names:
@@ -77,26 +79,35 @@ def upload_image(file_bytes: bytes, original_filename: str,
     if not available or supabase is None:
         return ""
 
+    supabase_url = _get_env_var("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
+    supabase_key = _get_env_var("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        print("Supabase URL or key missing; upload skipped")
+        return ""
+
     try:
         ext = _normalize_image_extension(original_filename)
         content_type = _normalize_content_type(ext)
         unique_filename = f"{folder}/{uuid.uuid4()}.{ext}"
+        upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{BUCKET_NAME}/{unique_filename}"
 
-        supabase.storage.from_(BUCKET_NAME).upload(
-            unique_filename,
-            file_bytes,
-            {"content-type": content_type}
-        )
+        with httpx.Client(timeout=httpx.Timeout(20.0, connect=10.0)) as client:
+            response = client.post(
+                upload_url,
+                content=file_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_key,
+                    "Content-Type": content_type,
+                },
+            )
+            response.raise_for_status()
 
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(
-            unique_filename
-        )
-        public_url = _extract_public_url(public_url)
-        if not public_url:
-            print(f"Supabase upload succeeded but returned no URL for {unique_filename}")
+        public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{BUCKET_NAME}/{unique_filename}"
         return public_url
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
+        print(f"Upload failed: {exc}")
         return ""
 
 
