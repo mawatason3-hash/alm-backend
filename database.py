@@ -73,3 +73,6 @@ def ensure_users_columns():
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
         if "face_descriptor" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "face_descriptor" TEXT'))
+        if "member_id" in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" DROP NOT NULL'))
+            connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" SET DEFAULT NULL'))
