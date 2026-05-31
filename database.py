@@ -58,6 +58,27 @@ async def disconnect_db():
 def create_tables():
     metadata.create_all(engine)
     ensure_users_columns()
+    ensure_verification_logs_table()
+
+
+def ensure_verification_logs_table():
+    inspector = inspect(engine)
+    if "verification_logs" in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text(
+            """
+            CREATE TABLE IF NOT EXISTS verification_logs (
+                id UUID PRIMARY KEY,
+                voter_id UUID,
+                voter_name TEXT,
+                result TEXT NOT NULL,
+                confidence FLOAT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+            """
+        ))
 
 
 def ensure_users_columns():

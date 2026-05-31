@@ -1,10 +1,11 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from database import database
 from models import users, verification_logs
 from auth import get_current_user
 from upload_helper import upload_image
-from rekognition import compare_faces, decode_image_base64, fetch_image_bytes
+from rekognition import compare_faces, decode_image_base64
 import uuid
 
 router = APIRouter()
@@ -41,13 +42,32 @@ async def verify_selfie(
     logger = logging.getLogger(__name__)
     
     try:
-        if not current_user.get("photo_url"):
+        print("=== VERIFY SELFIE START ===")
+        print(f"User ID: {current_user.get('id')}")
+
+        user = await database.fetch_one(
+            users.select().where(users.c.id == current_user["id"])
+        )
+        print(f"User found: {user is not None}")
+
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="Voter not found"
+            )
+
+        photo_url = user.get("photo_url")
+        print(f"Photo URL: {photo_url}")
+
+        if not photo_url:
             raise HTTPException(
                 status_code=400,
-                detail="No registration photo found. Please contact admin to update your profile."
+                detail="No registration photo found. Contact admin to update your profile."
             )
 
         selfie_base64 = body.selfie_base64
+        print(f"Selfie base64 length: {len(selfie_base64 or '')}")
+
         if not isinstance(selfie_base64, str) or not selfie_base64.strip():
             raise HTTPException(status_code=400, detail="Selfie image data is required.")
 
@@ -59,51 +79,42 @@ async def verify_selfie(
 
         filename = f"{uuid.uuid4()}.jpg"
 
-        logger.info(f"User {current_user['id']} attempting verification with selfie bytes size {len(selfie_bytes)}")
+        print("Calling AWS Rekognition...")
+        result = compare_faces(
+            source_image_url=photo_url,
+            target_image_base64=selfie_base64,
+            similarity_threshold=75.0
+        )
+        print(f"AWS Result: {result}")
 
-        try:
-            reference_bytes = fetch_image_bytes(current_user["photo_url"])
-            logger.info(f"Fetched reference image: {len(reference_bytes)} bytes from {current_user['photo_url']}")
-        except Exception as exc:
-            logger.error("Failed to fetch registration photo", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Failed to fetch registration photo: {exc}")
-
-        try:
-            comparison = compare_faces(reference_bytes, selfie_bytes, similarity_threshold=75.0)
-            logger.info(f"Comparison result: {comparison.get('match')}, similarity: {comparison.get('similarity')}")
-        except Exception as exc:
-            logger.error("Face comparison failed", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Face comparison failed: {exc}")
-
-        selfie_url = upload_image(selfie_bytes, filename, folder="verification-selfies")
-        if not selfie_url:
-            selfie_url = None
-
-        result = "success" if comparison.get("match") else "failed"
+        status = "success" if result.get("match") else "failed"
         try:
             await database.execute(
                 verification_logs.insert().values(
                     id=uuid.uuid4(),
-                    voter_id=current_user["id"],
-                    result=result,
-                    distance=comparison.get("distance"),
-                    selfie_url=selfie_url,
+                    voter_id=str(current_user["id"]),
+                    voter_name=user.get("full_name", ""),
+                    result=status,
+                    confidence=result.get("confidence") or 0,
+                    created_at=datetime.utcnow(),
                 )
             )
-            logger.info(f"Verification log created: {result}")
-        except Exception as exc:
-            logger.error(f"Unable to save verification record: {exc}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Unable to save verification record: {exc}")
+        except Exception as log_err:
+            print(f"Log error (non-fatal): {log_err}")
 
         return {
-            "verified": comparison.get("match"),
-            "confidence": comparison.get("similarity"),
-            "message": comparison.get("message"),
-            "selfie_url": selfie_url,
+            "verified": result.get("match"),
+            "confidence": result.get("confidence", 0),
+            "message": result.get("message", ""),
+            "selfie_url": None,
         }
-        
+
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Unexpected error in verify_selfie: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Verification service error: {exc}")
+        traceback.print_exc()
+        print(f"=== VERIFY SELFIE ERROR: {str(exc)} ===")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Verification service error: {str(exc)}"
+        )

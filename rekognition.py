@@ -8,40 +8,27 @@ from urllib.parse import urlparse
 from PIL import Image
 
 
-def _get_rekognition_client():
-    region = os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
-    aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
-    aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
-    client_kwargs = {}
+def get_rekognition_client():
+    key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
 
-    if region:
-        client_kwargs['region_name'] = region
+    print(f"AWS Key present: {bool(key)}")
+    print(f"AWS Secret present: {bool(secret)}")
+    print(f"AWS Region: {region}")
 
-    if aws_access_key_id:
-        client_kwargs['aws_access_key_id'] = aws_access_key_id
-    if aws_secret_access_key:
-        client_kwargs['aws_secret_access_key'] = aws_secret_access_key
-
-    return boto3.client('rekognition', **client_kwargs)
-
-
-def fetch_image_bytes(image_url: str) -> bytes:
-    if not image_url:
-        raise ValueError('Image URL is required for verification.')
-    if not isinstance(image_url, str):
-        raise ValueError('Image URL must be a string.')
-
-    cleaned_url = image_url.strip()
-    parsed = urlparse(cleaned_url)
-    if parsed.scheme not in ('http', 'https'):
-        raise ValueError(f'Invalid reference photo URL: {cleaned_url}')
+    if not key or not secret:
+        raise RuntimeError("AWS credentials not configured")
 
     try:
-        response = requests.get(cleaned_url, timeout=20)
-        response.raise_for_status()
-        return response.content
-    except requests.RequestException as exc:
-        raise RuntimeError(f'Unable to fetch reference image from URL: {exc}') from exc
+        return boto3.client(
+            "rekognition",
+            aws_access_key_id=key,
+            aws_secret_access_key=secret,
+            region_name=region
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Unable to create Rekognition client: {exc}") from exc
 
 
 def decode_image_base64(image_data: str) -> bytes:
@@ -67,51 +54,131 @@ def decode_image_base64(image_data: str) -> bytes:
         raise ValueError('Unable to decode selfie image.') from exc
 
 
-def compare_faces(source_image_bytes: bytes, target_image_bytes: bytes, similarity_threshold: float = 75.0):
-    if not source_image_bytes or not target_image_bytes:
-        raise ValueError('Both source and target images are required for comparison.')
-
-    client = _get_rekognition_client()
+def compare_faces(
+    source_image_url: str,
+    target_image_base64: str,
+    similarity_threshold: float = 75.0
+) -> dict:
     try:
-        response = client.compare_faces(
-            SourceImage={'Bytes': source_image_bytes},
-            TargetImage={'Bytes': target_image_bytes},
+        print(f"Downloading registration photo: {source_image_url}")
+
+        if not source_image_url or not isinstance(source_image_url, str):
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": "Invalid registration photo URL",
+            }
+
+        parsed = urlparse(source_image_url.strip())
+        if parsed.scheme not in ("http", "https"):
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": f"Invalid registration photo URL: {source_image_url}",
+            }
+
+        response = requests.get(
+            source_image_url,
+            timeout=15,
+            headers={"User-Agent": "ALM-Voting/1.0"}
+        )
+
+        print(f"Photo download status: {response.status_code}")
+        print(f"Photo size: {len(response.content)} bytes")
+
+        if response.status_code != 200:
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": f"Could not load registration photo (status {response.status_code})",
+            }
+
+        source_bytes = response.content
+        if not source_bytes:
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": "Registration photo is empty",
+            }
+
+        selfie_b64 = target_image_base64
+        if selfie_b64 is None:
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": "Selfie image data is missing",
+            }
+
+        if "," in selfie_b64:
+            selfie_b64 = selfie_b64.split(",", 1)[1]
+
+        try:
+            target_bytes = base64.b64decode(selfie_b64)
+        except Exception as exc:
+            return {
+                "match": False,
+                "confidence": 0,
+                "message": f"Invalid selfie image encoding: {exc}",
+            }
+
+        print(f"Selfie decoded size: {len(target_bytes)} bytes")
+
+        try:
+            img = Image.open(BytesIO(target_bytes))
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG", quality=85)
+            target_bytes = buffer.getvalue()
+            print(f"Selfie converted to JPEG: {len(target_bytes)} bytes")
+        except Exception as pil_err:
+            print(f"PIL conversion warning: {pil_err}")
+
+        print("Calling AWS Rekognition compare_faces...")
+        client = get_rekognition_client()
+
+        result = client.compare_faces(
+            SourceImage={"Bytes": source_bytes},
+            TargetImage={"Bytes": target_bytes},
             SimilarityThreshold=similarity_threshold,
         )
-    except NoCredentialsError as exc:
-        raise RuntimeError('AWS credentials are not configured for Rekognition.') from exc
-    except (BotoCoreError, ClientError) as exc:
-        raise RuntimeError(f'Rekognition compare_faces failed: {exc}') from exc
 
-    face_matches = response.get('FaceMatches', [])
-    if not face_matches:
-        unmatched = response.get('UnmatchedFaces', [])
+        print(f"AWS Raw result: {result}")
+
+        face_matches = result.get("FaceMatches", [])
+        unmatched = result.get("UnmatchedFaces", [])
+
+        print(f"Face matches: {len(face_matches)}")
+        print(f"Unmatched faces: {len(unmatched)}")
+
+        if face_matches:
+            best = max(face_matches, key=lambda x: x.get("Similarity", 0))
+            confidence = round(float(best.get("Similarity", 0.0)), 1)
+            return {
+                "match": True,
+                "confidence": confidence,
+                "message": f"Identity verified — {confidence}% match",
+            }
+
         if not unmatched:
             return {
-                'match': False,
-                'similarity': 0.0,
-                'confidence': 0.0,
-                'distance': None,
-                'message': 'No face detected in selfie',
+                "match": False,
+                "confidence": 0,
+                "message": "No face detected in your selfie. Please ensure good lighting and face the camera directly.",
             }
+
         return {
-            'match': False,
-            'similarity': 0.0,
-            'confidence': 0.0,
-            'distance': None,
-            'message': 'Face does not match your profile photo',
+            "match": False,
+            "confidence": 0,
+            "message": "Face does not match your profile photo. Please try again.",
         }
 
-    best_match = max(face_matches, key=lambda match: match.get('Similarity', 0.0))
-    similarity = float(best_match.get('Similarity', 0.0))
-    confidence = float(best_match.get('Face', {}).get('Confidence', 0.0))
-    distance = round(1.0 - similarity / 100.0, 4)
-    match = similarity >= similarity_threshold
-
-    return {
-        'match': match,
-        'similarity': similarity,
-        'confidence': confidence,
-        'distance': distance,
-        'message': f'Identity verified — {similarity:.1f}% match' if match else 'Face does not match your profile photo',
-    }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"compare_faces error: {str(e)}")
+        return {
+            "match": False,
+            "confidence": 0,
+            "message": f"Verification error: {str(e)}",
+        }
