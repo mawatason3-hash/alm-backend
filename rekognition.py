@@ -2,7 +2,7 @@ import os
 import base64
 import requests
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from io import BytesIO
 from PIL import Image
 
@@ -15,6 +15,7 @@ def _get_rekognition_client():
 
     if region:
         client_kwargs['region_name'] = region
+
     if aws_access_key_id:
         client_kwargs['aws_access_key_id'] = aws_access_key_id
     if aws_secret_access_key:
@@ -27,9 +28,12 @@ def fetch_image_bytes(image_url: str) -> bytes:
     if not image_url:
         raise ValueError('Image URL is required for verification.')
 
-    response = requests.get(image_url, timeout=20)
-    response.raise_for_status()
-    return response.content
+    try:
+        response = requests.get(image_url, timeout=20)
+        response.raise_for_status()
+        return response.content
+    except requests.RequestException as exc:
+        raise RuntimeError(f'Unable to fetch reference image from URL: {exc}') from exc
 
 
 def decode_image_base64(image_data: str) -> bytes:
@@ -66,6 +70,8 @@ def compare_faces(source_image_bytes: bytes, target_image_bytes: bytes, similari
             TargetImage={'Bytes': target_image_bytes},
             SimilarityThreshold=similarity_threshold,
         )
+    except NoCredentialsError as exc:
+        raise RuntimeError('AWS credentials are not configured for Rekognition.') from exc
     except (BotoCoreError, ClientError) as exc:
         raise RuntimeError(f'Rekognition compare_faces failed: {exc}') from exc
 

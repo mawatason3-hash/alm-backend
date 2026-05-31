@@ -109,4 +109,4 @@ async def verify_selfie(
         raise
     except Exception as exc:
         logger.error(f"Unexpected error in verify_selfie: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Verification service error. Please try again.")
+        raise HTTPException(status_code=500, detail=f"Verification service error: {exc}")
