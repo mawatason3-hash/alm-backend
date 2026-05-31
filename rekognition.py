@@ -4,6 +4,7 @@ import requests
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from io import BytesIO
+from urllib.parse import urlparse
 from PIL import Image
 
 
@@ -27,9 +28,16 @@ def _get_rekognition_client():
 def fetch_image_bytes(image_url: str) -> bytes:
     if not image_url:
         raise ValueError('Image URL is required for verification.')
+    if not isinstance(image_url, str):
+        raise ValueError('Image URL must be a string.')
+
+    cleaned_url = image_url.strip()
+    parsed = urlparse(cleaned_url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f'Invalid reference photo URL: {cleaned_url}')
 
     try:
-        response = requests.get(image_url, timeout=20)
+        response = requests.get(cleaned_url, timeout=20)
         response.raise_for_status()
         return response.content
     except requests.RequestException as exc:

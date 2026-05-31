@@ -52,7 +52,12 @@ async def verify_selfie(
             if not selfie_bytes:
                 raise HTTPException(status_code=400, detail="Uploaded selfie is empty.")
         else:
-            payload = await request.json()
+            try:
+                payload = await request.json()
+            except Exception as exc:
+                logger.error("Failed to parse verification request JSON", exc_info=True)
+                raise HTTPException(status_code=400, detail="Request body must be valid JSON with selfie_base64.")
+
             selfie_base64 = payload.get("selfie_base64")
             if not isinstance(selfie_base64, str) or not selfie_base64.strip():
                 raise HTTPException(status_code=400, detail="Selfie image data is required.")
@@ -63,20 +68,21 @@ async def verify_selfie(
                 raise HTTPException(status_code=400, detail=str(exc))
             filename = f"{uuid.uuid4()}.jpg"
 
-        logger.info(f"User {current_user['id']} attempting verification with {len(selfie_bytes)} bytes")
+        logger.info(f"User {current_user['id']} attempting verification with selfie bytes size {len(selfie_bytes)}")
 
         try:
             reference_bytes = fetch_image_bytes(current_user["photo_url"])
-            logger.info(f"Fetched reference image: {len(reference_bytes)} bytes")
-            
+            logger.info(f"Fetched reference image: {len(reference_bytes)} bytes from {current_user['photo_url']}")
+        except Exception as exc:
+            logger.error("Failed to fetch registration photo", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Failed to fetch registration photo: {exc}")
+
+        try:
             comparison = compare_faces(reference_bytes, selfie_bytes, similarity_threshold=75.0)
             logger.info(f"Comparison result: {comparison.get('match')}, similarity: {comparison.get('similarity')}")
-        except HTTPException as he:
-            logger.error(f"HTTP Exception during comparison: {he.detail}")
-            raise
         except Exception as exc:
-            logger.error(f"Comparison error: {exc}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Identity verification failed: {exc}")
+            logger.error("Face comparison failed", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Face comparison failed: {exc}")
 
         selfie_url = upload_image(selfie_bytes, filename, folder="verification-selfies")
         if not selfie_url:
