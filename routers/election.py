@@ -3,6 +3,7 @@ from database import database
 from models import election_settings, users, audit_logs
 from schemas import ElectionSettingsSchema
 from auth import get_current_admin
+from utils import row_to_dict
 from datetime import datetime
 from typing import Optional
 import uuid
@@ -18,13 +19,13 @@ def normalize_datetime(value: Optional[datetime]):
 @router.get("/settings")
 async def get_settings():
     try:
-        row = await database.fetch_one(
+        row = row_to_dict(await database.fetch_one(
             election_settings.select().limit(1)
-        )
+        ))
         if not row:
-            admin = await database.fetch_one(
+            admin = row_to_dict(await database.fetch_one(
                 users.select().where(users.c.role == "admin").limit(1)
-            )
+            ))
             settings_id = uuid.uuid4()
             await database.execute(election_settings.insert().values(
                 id=settings_id,
@@ -33,10 +34,10 @@ async def get_settings():
                 allow_registration=True,
                 created_by=admin["id"] if admin else None,
             ))
-            row = await database.fetch_one(
+            row = row_to_dict(await database.fetch_one(
                 election_settings.select().limit(1)
-            )
-        return dict(row)
+            ))
+        return row
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -46,9 +47,9 @@ async def update_settings(
     admin=Depends(get_current_admin)
 ):
     try:
-        existing = await database.fetch_one(
+        existing = row_to_dict(await database.fetch_one(
             election_settings.select().limit(1)
-        )
+        ))
         if existing:
             await database.execute(
                 election_settings.update()

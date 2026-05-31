@@ -3,6 +3,7 @@ from database import database
 from models import settings
 from schemas import AdminContactInfo, AdminContactUpdate
 from auth import get_current_admin
+from utils import rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -14,7 +15,7 @@ async def get_admin_contact():
         query = sa.select(settings.c.key, settings.c.value).where(
             settings.c.key.in_(["admin_phone", "admin_whatsapp", "admin_hours"])
         )
-        rows = await database.fetch_all(query)
+        rows = rows_to_list(await database.fetch_all(query))
         result = {"admin_phone": "", "admin_whatsapp": "", "admin_hours": ""}
         for row in rows:
             result[row["key"]] = row["value"] or ""

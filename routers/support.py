@@ -3,6 +3,7 @@ from database import database
 from models import support_requests, users
 from schemas import SupportRequestCreate
 from auth import get_current_user, get_current_admin
+from utils import rows_to_list
 import uuid
 import sqlalchemy as sa
 
@@ -38,8 +39,8 @@ async def list_support_requests(admin=Depends(get_current_admin)):
             LEFT JOIN users u ON u.id = sr.user_id
             ORDER BY sr.created_at DESC
         """)
-        result = await database.fetch_all(query)
-        return [dict(r) for r in result]
+        result = rows_to_list(await database.fetch_all(query))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 

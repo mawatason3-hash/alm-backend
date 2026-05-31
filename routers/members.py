@@ -3,6 +3,7 @@ from database import database
 from models import users, votes, audit_logs, reset_tokens, election_settings
 from auth import get_current_admin, hash_password
 from schemas import TeamCreate, TeamUpdate, AdminCreateMember, AdminUpdateMember
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -24,8 +25,8 @@ async def get_members(admin=Depends(get_current_admin)):
                      u.photo_url
             ORDER BY u.created_at DESC
         """)
-        result = await database.fetch_all(query)
-        return [dict(r) for r in result]
+        result = rows_to_list(await database.fetch_all(query))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -33,9 +34,9 @@ async def get_members(admin=Depends(get_current_admin)):
 @router.post("/")
 async def create_member(body: AdminCreateMember, admin=Depends(get_current_admin)):
     try:
-        existing = await database.fetch_one(
+        existing = row_to_dict(await database.fetch_one(
             users.select().where(users.c.email == body.email)
-        )
+        ))
         if existing:
             raise HTTPException(400, "Email already exists")
 

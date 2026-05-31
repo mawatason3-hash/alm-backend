@@ -3,6 +3,7 @@ from database import database
 from models import access_requests
 from schemas import AccessRequestCreate, AccessRequestResponse, AccessRequestUpdate
 from auth import get_current_user, get_current_admin
+from utils import rows_to_list
 import uuid
 import sqlalchemy as sa
 
@@ -34,10 +35,10 @@ async def create_access_request(body: AccessRequestCreate, current_user=Depends(
 @router.get("/", response_model=list[AccessRequestResponse])
 async def list_access_requests(admin=Depends(get_current_admin)):
     try:
-        result = await database.fetch_all(
+        result = rows_to_list(await database.fetch_all(
             sa.select(access_requests).order_by(access_requests.c.created_at.desc())
-        )
-        return [dict(r) for r in result]
+        ))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 

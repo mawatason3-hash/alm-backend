@@ -7,6 +7,7 @@ import traceback
 import uuid
 from auth import create_access_token, hash_password, verify_password
 from upload_helper import upload_image
+from utils import row_to_dict
 
 router = APIRouter()
 
@@ -38,9 +39,9 @@ async def register(
     """
     try:
         # Check if email already exists
-        existing_email = await database.fetch_one(
+        existing_email = row_to_dict(await database.fetch_one(
             users.select().where(users.c.email == email)
-        )
+        ))
         if existing_email:
             raise HTTPException(
                 status_code=400,
@@ -121,9 +122,15 @@ async def login(body: UserLogin):
     """
     try:
         # Find user by email
-        user = await database.fetch_one(
+        user_row = await database.fetch_one(
             users.select().where(users.c.email == body.email)
         )
+        if not user_row:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+        user = row_to_dict(user_row)
 
         if not user:
             raise HTTPException(

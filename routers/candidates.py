@@ -4,6 +4,7 @@ from database import database
 from models import candidates, teams, positions, audit_logs
 from auth import get_current_admin
 from upload_helper import upload_image
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -23,8 +24,8 @@ async def get_candidates():
             JOIN positions p ON p.id = c.position_id
             ORDER BY t.name, p.title
         """)
-        result = await database.fetch_all(query)
-        return [dict(r) for r in result]
+        result = rows_to_list(await database.fetch_all(query))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -71,11 +72,11 @@ async def add_candidate(
         elif running_mate_picture_url:
             mate_url = running_mate_picture_url
 
-        team_exists = await database.fetch_one(teams.select().where(teams.c.id == team_id))
+        team_exists = row_to_dict(await database.fetch_one(teams.select().where(teams.c.id == team_id)))
         if not team_exists:
             raise HTTPException(400, "Selected team does not exist")
 
-        position_exists = await database.fetch_one(positions.select().where(positions.c.id == position_id))
+        position_exists = row_to_dict(await database.fetch_one(positions.select().where(positions.c.id == position_id)))
         if not position_exists:
             raise HTTPException(400, "Selected position does not exist")
 

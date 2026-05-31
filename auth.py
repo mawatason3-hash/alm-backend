@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from database import database
 from models import users
+from utils import row_to_dict
 import sqlalchemy as sa
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret")
@@ -63,7 +64,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     user = await database.fetch_one(query)
     if user is None:
         raise credentials_exception
-    return dict(user)
+    return row_to_dict(user)
 
 async def get_current_admin(
     current_user = Depends(get_current_user)

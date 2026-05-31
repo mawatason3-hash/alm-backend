@@ -3,6 +3,7 @@ from database import database
 from models import verification_logs, users
 from schemas import VerificationLogCreate
 from auth import get_current_user, get_current_admin
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -41,17 +42,17 @@ async def list_verification_logs(admin=Depends(get_current_admin)):
             verification_logs.join(users, verification_logs.c.voter_id == users.c.id)
         ).order_by(verification_logs.c.created_at.desc())
 
-        rows = await database.fetch_all(query)
-        return [dict(row) for row in rows]
+        rows = rows_to_list(await database.fetch_all(query))
+        return rows
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.post("/{log_id}/grant-access")
 async def grant_access(log_id: str, admin=Depends(get_current_admin)):
     try:
-        log_entry = await database.fetch_one(
+        log_entry = row_to_dict(await database.fetch_one(
             verification_logs.select().where(verification_logs.c.id == log_id)
-        )
+        ))
         if not log_entry:
             raise HTTPException(status_code=404, detail="Verification log entry not found")
 

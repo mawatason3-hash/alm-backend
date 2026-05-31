@@ -4,6 +4,7 @@ from models import teams, positions, candidates, audit_logs
 from schemas import TeamCreate, TeamUpdate
 from auth import get_current_admin
 from upload_helper import upload_image
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -20,17 +21,17 @@ async def get_teams():
             GROUP BY t.id, t.name, t.description, t.created_at
             ORDER BY t.created_at ASC
         """)
-        result = await database.fetch_all(query)
-        return [dict(r) for r in result]
+        result = rows_to_list(await database.fetch_all(query))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.post("/")
 async def create_team(body: TeamCreate, admin=Depends(get_current_admin)):
     try:
-        existing = await database.fetch_one(
+        existing = row_to_dict(await database.fetch_one(
             teams.select().where(teams.c.name == body.name)
-        )
+        ))
         if existing:
             raise HTTPException(400, "Team name already exists")
 
@@ -104,9 +105,9 @@ async def create_full_team(
 ):
     try:
         # create team
-        existing = await database.fetch_one(
+        existing = row_to_dict(await database.fetch_one(
             teams.select().where(teams.c.name == name)
-        )
+        ))
         if existing:
             raise HTTPException(400, "Team name already exists")
 
@@ -190,9 +191,9 @@ async def create_full_team(
 
         # insert candidates
         # find the position ids we just created
-        pos_rows = await database.fetch_all(
+        pos_rows = rows_to_list(await database.fetch_all(
             positions.select().where(positions.c.team_id == team_id)
-        )
+        ))
         pos_map = {p['title']: p['id'] for p in pos_rows}
 
         # President + VP as one candidate row in president_vp

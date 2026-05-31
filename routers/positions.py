@@ -3,6 +3,7 @@ from database import database
 from models import positions, teams, candidates, audit_logs
 from schemas import PositionCreate, PositionUpdate
 from auth import get_current_admin
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -21,22 +22,22 @@ async def get_positions():
             GROUP BY p.id, p.title, p.display_name, p.is_combined, p.team_id, t.name
             ORDER BY t.name, p.title
         """)
-        result = await database.fetch_all(query)
-        return [dict(r) for r in result]
+        result = rows_to_list(await database.fetch_all(query))
+        return result
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.post("/")
 async def create_position(body: PositionCreate, admin=Depends(get_current_admin)):
     try:
-        existing = await database.fetch_one(
+        existing = row_to_dict(await database.fetch_one(
             positions.select().where(
                 sa.and_(
                     positions.c.team_id == body.team_id,
                     positions.c.title == body.title
                 )
             )
-        )
+        ))
         if existing:
             raise HTTPException(400, "A position with that title already exists for this team")
 

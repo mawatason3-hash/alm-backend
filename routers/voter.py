@@ -6,6 +6,7 @@ from models import users, verification_logs
 from auth import get_current_user
 from upload_helper import upload_image
 from rekognition import compare_faces, decode_image_base64
+from utils import row_to_dict
 import uuid
 
 router = APIRouter()
@@ -16,9 +17,10 @@ class VerifySelfieRequest(BaseModel):
 
 @router.get("/profile")
 async def get_voter_profile(current_user=Depends(get_current_user)):
-    user = await database.fetch_one(users.select().where(users.c.id == current_user["id"]))
-    if not user:
+    user_row = await database.fetch_one(users.select().where(users.c.id == current_user["id"]))
+    if not user_row:
         raise HTTPException(status_code=404, detail="User not found")
+    user = row_to_dict(user_row)
 
     return {
         "id": str(user["id"]),
@@ -47,17 +49,18 @@ async def verify_selfie(
         print("=== VERIFY SELFIE START ===")
         print(f"User ID: {user_id}")
 
-        user = await database.fetch_one(
+        user_row = await database.fetch_one(
             users.select().where(users.c.id == user_id)
         )
-        print(f"User found: {user is not None}")
+        print(f"User found: {user_row is not None}")
 
-        if not user:
+        if not user_row:
             raise HTTPException(
                 status_code=404,
                 detail="Voter not found"
             )
 
+        user = row_to_dict(user_row)
         photo_url = user.get("photo_url")
         print(f"Photo URL: {photo_url}")
 

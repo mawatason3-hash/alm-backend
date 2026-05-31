@@ -4,6 +4,7 @@ from database import database
 from models import election_settings
 from auth import get_current_user, SECRET_KEY, ALGORITHM
 from jose import JWTError, jwt
+from utils import row_to_dict, rows_to_list
 import sqlalchemy as sa
 from datetime import datetime, timezone
 
@@ -31,10 +32,10 @@ async def get_results(token: str = Depends(oauth2_optional)):
                 pass
 
         if not is_admin:
-            settings = await database.fetch_one(
+            settings = row_to_dict(await database.fetch_one(
                 election_settings.select().limit(1)
-            )
-            if settings and settings["voting_end"]:
+            ))
+            if settings and settings.get("voting_end"):
                 voting_end = settings["voting_end"]
                 if voting_end.tzinfo is None:
                     voting_end = voting_end.replace(tzinfo=timezone.utc)
@@ -63,9 +64,9 @@ async def get_results(token: str = Depends(oauth2_optional)):
                      p.display_name, p.title, p.is_combined
             ORDER BY p.title, vote_count DESC
         """)
-        candidates_result = await database.fetch_all(results_query)
+        candidates_result = rows_to_list(await database.fetch_all(results_query))
 
-        response = {"candidates": [dict(r) for r in candidates_result]}
+        response = {"candidates": candidates_result}
 
         if is_admin:
             voters_query = sa.text("""
@@ -81,8 +82,8 @@ async def get_results(token: str = Depends(oauth2_optional)):
                 JOIN positions p ON p.id = v.position_id
                 ORDER BY v.voted_at DESC
             """)
-            voters = await database.fetch_all(voters_query)
-            response["voters"] = [dict(r) for r in voters]
+            voters = rows_to_list(await database.fetch_all(voters_query))
+            response["voters"] = voters
 
         return response
 
@@ -125,7 +126,7 @@ async def export_results_csv(token: str = Depends(oauth2_optional)):
                      p.display_name, p.title, p.is_combined
             ORDER BY p.title, vote_count DESC
         """)
-        candidates_result = await database.fetch_all(results_query)
+        candidates_result = rows_to_list(await database.fetch_all(results_query))
 
         # Build CSV lines
         lines = ["Team,Position,Candidate Name,Running Mate,Votes"]

@@ -3,6 +3,7 @@ from database import database
 from models import users, votes, audit_logs
 from schemas import StatsResponse
 from auth import get_current_admin
+from utils import rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -84,12 +85,12 @@ async def get_audit_log(
             ORDER BY al.created_at DESC
             LIMIT {limit} OFFSET {offset}
         """)
-        logs = await database.fetch_all(query)
+        logs = rows_to_list(await database.fetch_all(query))
         total = await database.fetch_one(
             sa.select(sa.func.count()).select_from(audit_logs)
         )
         return {
-            "logs": [dict(r) for r in logs],
+            "logs": logs,
             "total": total[0],
             "page": page,
             "limit": limit,
