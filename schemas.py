@@ -92,12 +92,15 @@ class VoteCreate(BaseModel):
     position_id: uuid.UUID
     team_id: uuid.UUID
 
-class FaceDescriptorCreate(BaseModel):
-    descriptor: list[float]
-
 class SupportRequestCreate(BaseModel):
     subject: str
     message: str
+
+class VerificationLogCreate(BaseModel):
+    result: str
+    distance: Optional[float] = None
+    selfie_image_url: Optional[str] = None
+    voter_id: Optional[uuid.UUID] = None
 
 class SupportRequestResponse(BaseModel):
     id: uuid.UUID

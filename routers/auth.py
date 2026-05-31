@@ -51,13 +51,18 @@ async def register(
         if photo and getattr(photo, 'filename', None):
             try:
                 file_bytes = await photo.read()
-                photo_url = upload_image(
-                    file_bytes=file_bytes,
-                    original_filename=photo.filename,
-                    folder="voters"
-                )
+                print(f"Photo received: {photo.filename}, size: {len(file_bytes)} bytes")
+                if len(file_bytes) > 0:
+                    photo_url = upload_image(
+                        file_bytes=file_bytes,
+                        original_filename=photo.filename,
+                        folder="voters"
+                    )
+                    print(f"Photo URL saved: {photo_url}")
+                else:
+                    print("Empty file received")
             except Exception as exc:
-                print(f"Photo upload failed, continuing without photo: {exc}")
+                print(f"Photo upload error: {exc}")
                 photo_url = None
 
         # Hash password

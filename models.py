@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Table, Column, String, Boolean, DateTime, 
-    Text, ForeignKey, JSON, UniqueConstraint
+    Text, ForeignKey, JSON, UniqueConstraint, Float
 )
 from sqlalchemy.dialects.postgresql import UUID
 import sqlalchemy as sa
@@ -18,7 +18,6 @@ users = Table("users", metadata,
     Column("role", Text, default="member"),
     Column("is_approved", Boolean, default=False),
     Column("photo_url", Text, nullable=True),
-    Column("face_descriptor", Text, nullable=True),
     Column("created_at", DateTime, 
            default=sa.func.now()),
 )
@@ -83,6 +82,18 @@ votes = Table("votes", metadata,
     Column("voted_at", DateTime, default=sa.func.now()),
     UniqueConstraint("voter_id", "position_id",
                      name="unique_voter_position"),
+)
+
+verification_logs = Table("verification_logs", metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True,
+           default=uuid.uuid4),
+    Column("voter_id", UUID(as_uuid=True),
+           ForeignKey("users.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("result", Text, nullable=False),
+    Column("distance", Float, nullable=True),
+    Column("selfie_url", Text, nullable=True),
+    Column("created_at", DateTime, default=sa.func.now()),
 )
 
 election_settings = Table("election_settings", metadata,
