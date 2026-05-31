@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from database import database
 from models import users, verification_logs
 from auth import get_current_user
@@ -7,6 +8,10 @@ from rekognition import compare_faces, decode_image_base64, fetch_image_bytes
 import uuid
 
 router = APIRouter()
+
+
+class VerifySelfieRequest(BaseModel):
+    selfie_base64: str
 
 @router.get("/profile")
 async def get_voter_profile(current_user=Depends(get_current_user)):
@@ -27,9 +32,8 @@ async def get_voter_profile(current_user=Depends(get_current_user)):
 
 @router.post("/verify-selfie")
 async def verify_selfie(
-    request: Request,
-    current_user=Depends(get_current_user),
-    selfie: UploadFile | None = File(None)
+    body: VerifySelfieRequest,
+    current_user=Depends(get_current_user)
 ):
     import traceback
     import logging
@@ -43,30 +47,17 @@ async def verify_selfie(
                 detail="No registration photo found. Please contact admin to update your profile."
             )
 
-        selfie_bytes = None
-        filename = None
+        selfie_base64 = body.selfie_base64
+        if not isinstance(selfie_base64, str) or not selfie_base64.strip():
+            raise HTTPException(status_code=400, detail="Selfie image data is required.")
 
-        if selfie is not None:
-            selfie_bytes = await selfie.read()
-            filename = selfie.filename or f"{uuid.uuid4()}.jpg"
-            if not selfie_bytes:
-                raise HTTPException(status_code=400, detail="Uploaded selfie is empty.")
-        else:
-            try:
-                payload = await request.json()
-            except Exception as exc:
-                logger.error("Failed to parse verification request JSON", exc_info=True)
-                raise HTTPException(status_code=400, detail="Request body must be valid JSON with selfie_base64.")
+        try:
+            selfie_bytes = decode_image_base64(selfie_base64)
+        except ValueError as exc:
+            logger.error(f"Base64 decode error: {exc}")
+            raise HTTPException(status_code=400, detail=str(exc))
 
-            selfie_base64 = payload.get("selfie_base64")
-            if not isinstance(selfie_base64, str) or not selfie_base64.strip():
-                raise HTTPException(status_code=400, detail="Selfie image data is required.")
-            try:
-                selfie_bytes = decode_image_base64(selfie_base64)
-            except ValueError as exc:
-                logger.error(f"Base64 decode error: {exc}")
-                raise HTTPException(status_code=400, detail=str(exc))
-            filename = f"{uuid.uuid4()}.jpg"
+        filename = f"{uuid.uuid4()}.jpg"
 
         logger.info(f"User {current_user['id']} attempting verification with selfie bytes size {len(selfie_bytes)}")
 
