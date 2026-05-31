@@ -63,7 +63,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     user = await database.fetch_one(query)
     if user is None:
         raise credentials_exception
-    return user
+    return dict(user)
 
 async def get_current_admin(
     current_user = Depends(get_current_user)

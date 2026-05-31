@@ -42,11 +42,13 @@ async def verify_selfie(
     logger = logging.getLogger(__name__)
     
     try:
+        user_data = dict(current_user)
+        user_id = user_data.get('id') or user_data.get('sub')
         print("=== VERIFY SELFIE START ===")
-        print(f"User ID: {current_user.get('id')}")
+        print(f"User ID: {user_id}")
 
         user = await database.fetch_one(
-            users.select().where(users.c.id == current_user["id"])
+            users.select().where(users.c.id == user_id)
         )
         print(f"User found: {user is not None}")
 
@@ -92,7 +94,7 @@ async def verify_selfie(
             await database.execute(
                 verification_logs.insert().values(
                     id=uuid.uuid4(),
-                    voter_id=str(current_user["id"]),
+                    voter_id=str(user_id),
                     voter_name=user.get("full_name", ""),
                     result=status,
                     confidence=result.get("confidence") or 0,
