@@ -31,11 +31,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ALM Voting System Backend", lifespan=lifespan)
 
 # 2. Add CORS Middleware so your Next.js Vercel frontend can connect
+# CRITICAL: This must be before all routers are included
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://alm-voting-system.vercel.app", "http://localhost:3000"],
+    allow_origins=[
+        "https://alm-voting-system.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -54,7 +59,50 @@ def get_debug_info():
         "environment": os.getenv("RAILWAY_ENVIRONMENT", "production")
     }
 
-# 4. Include all your application router endpoints
+# 4. AWS Health Check endpoint
+@app.get("/api/admin/test-aws")
+async def test_aws_connection():
+    try:
+        import boto3
+        import os
+        
+        key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+        secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        
+        if not key or not secret:
+            return {
+                "aws_connected": False,
+                "error": "AWS credentials missing",
+                "key_present": bool(key),
+                "secret_present": bool(secret),
+                "region": region
+            }
+        
+        client = boto3.client(
+            "rekognition",
+            aws_access_key_id=key,
+            aws_secret_access_key=secret,
+            region_name=region
+        )
+        
+        # Test with a simple list call
+        client.list_collections(MaxResults=1)
+        
+        return {
+            "aws_connected": True,
+            "region": region,
+            "key_prefix": key[:8] + "...",
+            "message": "AWS Rekognition is connected"
+        }
+    except Exception as e:
+        return {
+            "aws_connected": False,
+            "error": str(e),
+            "region": os.environ.get("AWS_REGION", "")
+        }
+
+# 5. Include all your application router endpoints
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(members.router, prefix="/api/members", tags=["Members"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
