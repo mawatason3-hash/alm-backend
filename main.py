@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from database import connect_db, disconnect_db, create_tables
 from routers import auth, members, teams, positions, candidates, votes, results, election, admin, uploads, support, access_requests, settings, voter, verification_logs
+from routers import vote_choices
 import models  # ensure SQLAlchemy Table metadata is registered
 
 logger = logging.getLogger(__name__)
@@ -118,3 +119,4 @@ app.include_router(support.router, prefix="/api/support", tags=["Support"])
 app.include_router(access_requests.router, prefix="/api/access-requests", tags=["Access Requests"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(voter.router, prefix="/api/voter", tags=["Voter"])
+app.include_router(vote_choices.router, prefix="/api", tags=["Vote Choices"])

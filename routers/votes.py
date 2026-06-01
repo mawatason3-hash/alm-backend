@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from database import database
-from models import votes, positions, election_settings, audit_logs, users
+from models import votes, vote_choices, positions, election_settings, audit_logs, users, candidates, teams
 from schemas import VoteCreate
 from auth import get_current_user
 from utils import row_to_dict, rows_to_list
@@ -52,6 +52,29 @@ async def cast_vote(body: VoteCreate, current_user=Depends(get_current_user)):
             candidate_id=str(body.candidate_id),
             position_id=str(body.position_id),
             team_id=str(body.team_id),
+            voted_at=datetime.utcnow(),
+        ))
+
+        candidate_row = await database.fetch_one(
+            candidates.select().where(candidates.c.id == str(body.candidate_id))
+        )
+        candidate_data = row_to_dict(candidate_row) if candidate_row else {}
+
+        team_row = await database.fetch_one(
+            teams.select().where(teams.c.id == str(body.team_id))
+        )
+        team_data = row_to_dict(team_row) if team_row else {}
+
+        await database.execute(vote_choices.insert().values(
+            id=uuid.uuid4(),
+            voter_id=current_user["id"],
+            voter_name=current_user.get("full_name", ""),
+            voter_email=current_user.get("email", ""),
+            candidate_id=str(body.candidate_id),
+            candidate_name=candidate_data.get("full_name", ""),
+            position=position_title,
+            team_name=team_data.get("name", ""),
+            running_mate=candidate_data.get("running_mate_name", ""),
             voted_at=datetime.utcnow(),
         ))
 

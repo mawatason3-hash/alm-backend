@@ -59,6 +59,33 @@ def create_tables():
     metadata.create_all(engine)
     ensure_users_columns()
     ensure_verification_logs_table()
+    ensure_vote_choices_table()
+
+
+def ensure_vote_choices_table():
+    inspector = inspect(engine)
+    if "vote_choices" in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text(
+            """
+            CREATE TABLE IF NOT EXISTS vote_choices (
+                id UUID PRIMARY KEY,
+                voter_id UUID NOT NULL,
+                voter_name TEXT NOT NULL,
+                voter_email TEXT NOT NULL,
+                candidate_id UUID NOT NULL,
+                candidate_name TEXT NOT NULL,
+                position TEXT NOT NULL,
+                team_name TEXT NOT NULL,
+                running_mate TEXT,
+                voted_at TIMESTAMP DEFAULT NOW(),
+                CONSTRAINT fk_vote_choices_user FOREIGN KEY (voter_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_vote_choices_candidate FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+            )
+            """
+        ))
 
 
 def ensure_verification_logs_table():
@@ -94,6 +121,10 @@ def ensure_users_columns():
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
         if "face_descriptor" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "face_descriptor" TEXT'))
+        if "verified_by_admin" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "verified_by_admin" BOOLEAN DEFAULT FALSE'))
+        if "admin_verified_at" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "admin_verified_at" TIMESTAMP NULL'))
         if "member_id" in existing_columns:
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" DROP NOT NULL'))
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" SET DEFAULT NULL'))

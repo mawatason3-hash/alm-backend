@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from database import database
-from models import access_requests
+from models import access_requests, users
 from schemas import AccessRequestCreate, AccessRequestResponse, AccessRequestUpdate
 from auth import get_current_user, get_current_admin
 from utils import rows_to_list
@@ -93,6 +93,25 @@ async def update_access_request(request_id: str, body: AccessRequestUpdate, admi
             .where(access_requests.c.id == request_id)
             .values(**update_values)
         )
+
+        if body.status == "approved":
+            request_row = await database.fetch_one(
+                access_requests.select().where(access_requests.c.id == request_id)
+            )
+            if request_row:
+                request_dict = dict(request_row)
+                voter_id = request_dict.get("voter_id")
+                if voter_id:
+                    await database.execute(
+                        users.update()
+                        .where(users.c.id == voter_id)
+                        .values(
+                            verified_by_admin=True,
+                            admin_verified_at=sa.func.now()
+                        )
+                    )
+                    print(f"Voter {voter_id} verified by admin")
+
         return {"success": True, "status": body.status}
     except Exception as e:
         raise HTTPException(500, str(e))

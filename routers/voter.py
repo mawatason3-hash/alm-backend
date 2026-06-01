@@ -30,7 +30,44 @@ async def get_voter_profile(current_user=Depends(get_current_user)):
         "photo_url": user["photo_url"],
         "role": user["role"],
         "is_approved": user["is_approved"],
+        "verified_by_admin": bool(user.get("verified_by_admin", False)),
+        "admin_verified_at": str(user["admin_verified_at"]) if user.get("admin_verified_at") else None,
         "created_at": str(user["created_at"])
+    }
+
+@router.get("/verification-status")
+async def get_verification_status(
+    current_user=Depends(get_current_user)
+):
+    user_id = current_user.get("id")
+
+    user_row = await database.fetch_one(
+        users.select().where(users.c.id == user_id)
+    )
+    if not user_row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user = row_to_dict(user_row)
+    verified_by_admin = bool(user.get("verified_by_admin", False))
+
+    request_row = await database.fetch_one(
+        """
+        SELECT status FROM access_requests
+        WHERE voter_id = :voter_id
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        {"voter_id": str(user_id)}
+    )
+    request_status = dict(request_row).get("status") if request_row else None
+
+    is_verified = verified_by_admin or request_status == "approved"
+
+    return {
+        "verified_by_admin": verified_by_admin,
+        "request_status": request_status,
+        "can_access_ballot": is_verified,
+        "admin_verified_at": str(user.get("admin_verified_at")) if user.get("admin_verified_at") else None
     }
 
 @router.post("/verify-selfie")
