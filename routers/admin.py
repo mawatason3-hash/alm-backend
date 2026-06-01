@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from database import database
-from models import users, votes, audit_logs, verification_logs
+from models import users, votes, audit_logs
 from schemas import StatsResponse
 from auth import get_current_admin
-from utils import rows_to_list, row_to_dict
+from utils import rows_to_list
 import sqlalchemy as sa
 import uuid
 
@@ -89,42 +89,6 @@ async def get_audit_log(
         total = await database.fetch_one(
             sa.select(sa.func.count()).select_from(audit_logs)
         )
-        return {
-            "logs": logs,
-            "total": total[0],
-            "page": page,
-            "limit": limit,
-        }
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-@router.get("/verification-logs")
-async def get_verification_logs(
-    page: int = 1,
-    limit: int = 20,
-    admin=Depends(get_current_admin)
-):
-    try:
-        offset = (page - 1) * limit
-        
-        query = sa.select(
-            verification_logs.c.id,
-            verification_logs.c.voter_id,
-            users.c.full_name.label("voter_name"),
-            verification_logs.c.result,
-            verification_logs.c.confidence,
-            verification_logs.c.created_at,
-        ).select_from(
-            verification_logs.join(users, verification_logs.c.voter_id == users.c.id)
-        ).order_by(verification_logs.c.created_at.desc()).limit(limit).offset(offset)
-
-        rows = await database.fetch_all(query)
-        logs = [row_to_dict(row) for row in rows]
-
-        total = await database.fetch_one(
-            sa.select(sa.func.count()).select_from(verification_logs)
-        )
-
         return {
             "logs": logs,
             "total": total[0],
