@@ -49,6 +49,7 @@ async def get_verification_status(
 
     user = row_to_dict(user_row)
     verified_by_admin = bool(user.get("verified_by_admin", False))
+    selfie_verified = bool(user.get("selfie_verified", False))
 
     request_row = await database.fetch_one(
         """
@@ -61,9 +62,10 @@ async def get_verification_status(
     )
     request_status = dict(request_row).get("status") if request_row else None
 
-    is_verified = verified_by_admin or request_status == "approved"
+    is_verified = selfie_verified or verified_by_admin
 
     return {
+        "selfie_verified": selfie_verified,
         "verified_by_admin": verified_by_admin,
         "request_status": request_status,
         "can_access_ballot": is_verified,
@@ -141,6 +143,15 @@ async def verify_selfie(
                     created_at=datetime.utcnow(),
                 )
             )
+            if status == "success":
+                await database.execute(
+                    users.update()
+                    .where(users.c.id == user_id)
+                    .values(
+                        selfie_verified=True,
+                        selfie_verified_at=datetime.utcnow()
+                    )
+                )
         except Exception as log_err:
             print(f"Log error (non-fatal): {log_err}")
 
@@ -160,3 +171,18 @@ async def verify_selfie(
             status_code=500,
             detail=f"Verification service error: {str(exc)}"
         )
+
+@router.post("/mark-verified")
+async def mark_voter_verified(
+    current_user=Depends(get_current_user)
+):
+    voter_id = current_user.get('id')
+    await database.execute(
+        users.update()
+        .where(users.c.id == voter_id)
+        .values(
+            selfie_verified=True,
+            selfie_verified_at=datetime.utcnow()
+        )
+    )
+    return {"success": True}

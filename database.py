@@ -125,6 +125,10 @@ def ensure_users_columns():
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "verified_by_admin" BOOLEAN DEFAULT FALSE'))
         if "admin_verified_at" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "admin_verified_at" TIMESTAMP NULL'))
+        if "selfie_verified" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "selfie_verified" BOOLEAN DEFAULT FALSE'))
+        if "selfie_verified_at" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "selfie_verified_at" TIMESTAMP NULL'))
         if "member_id" in existing_columns:
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" DROP NOT NULL'))
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" SET DEFAULT NULL'))
