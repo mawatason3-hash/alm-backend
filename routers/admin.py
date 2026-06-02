@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from database import database
 from models import users, votes, audit_logs
 from schemas import StatsResponse
-from auth import get_current_admin
+from auth import get_current_admin, get_current_user_token
 from utils import rows_to_list
 import sqlalchemy as sa
 import uuid

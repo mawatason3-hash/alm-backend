@@ -5,7 +5,7 @@ from database import database
 from models import users
 from auth import get_current_user
 from utils import row_to_dict
-from routers.email import send_otp_email, generate_otp, is_email_configured
+from routers.email import GMAIL_USER, GMAIL_APP_PASSWORD, send_otp_email, generate_otp, is_email_configured
 import os
 
 router = APIRouter()
@@ -90,7 +90,7 @@ async def send_otp(
         )
 
     generated_pin = generate_otp()
-    otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
+    otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
 
     await database.execute(
         users.update()
@@ -115,7 +115,8 @@ async def send_otp(
         )
 
     return {
-        "message": "A one-time verification code was issued and emailed to your account."
+        "success": True,
+        "message": "OTP sent"
     }
 
 @router.post("/verify-otp")
@@ -126,28 +127,44 @@ async def verify_otp(body: VerifyOtpRequest, current_user=Depends(get_current_us
 
     user = row_to_dict(user_row)
     if user.get("otp_verified"):
-        return {"verified": True, "message": "Email already verified."}
+        return {"success": True, "verified": True, "message": "Email already verified."}
 
     if not user.get("otp_code") or not user.get("otp_expires_at"):
         raise HTTPException(status_code=400, detail="No active OTP request. Please request a new code.")
 
     if datetime.utcnow() > user["otp_expires_at"]:
-        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new code.")
+        raise HTTPException(status_code=400, detail="OTP expired, request new one")
 
     if body.otp_code.strip() != str(user["otp_code"]).strip():
-        raise HTTPException(status_code=400, detail="Invalid OTP code.")
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
 
     await database.execute(
         users.update()
         .where(users.c.id == current_user["id"])
         .values(
             otp_verified=True,
+            otp_verified_at=datetime.utcnow(),
             otp_code=None,
             otp_expires_at=None
         )
     )
 
     return {
+        "success": True,
         "verified": True,
         "message": "Email verified. You can now proceed to vote."
+    }
+
+@router.get("/admin/test-email")
+async def test_email(current_user=Depends(get_current_user)):
+    success = await send_otp_email(
+        to_email=GMAIL_USER,
+        voter_name="Test User",
+        otp_code="123456"
+    )
+
+    return {
+        "email_sent": success,
+        "gmail_user": GMAIL_USER,
+        "gmail_configured": bool(GMAIL_USER and GMAIL_APP_PASSWORD)
     }
