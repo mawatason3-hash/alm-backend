@@ -122,7 +122,7 @@ async def seed_admin():
     except Exception as e:
         raise HTTPException(500, str(e))
 
-@router.post("/test-email")
+@router.get("/test-email")
 async def test_email(admin=Depends(get_current_admin)):
     try:
         from routers.email import send_otp_email
