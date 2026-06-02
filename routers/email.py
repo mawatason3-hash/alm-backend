@@ -12,6 +12,10 @@ GMAIL_APP_PASSWORD = os.environ.get(
 )
 
 
+def is_email_configured() -> bool:
+    return bool(GMAIL_USER and GMAIL_APP_PASSWORD)
+
+
 async def send_otp_email(
     to_email: str,
     voter_name: str,

@@ -5,7 +5,7 @@ from database import database
 from models import users
 from auth import get_current_user
 from utils import row_to_dict
-from routers.email import send_otp_email, generate_otp
+from routers.email import send_otp_email, generate_otp, is_email_configured
 import os
 
 router = APIRouter()
@@ -83,6 +83,12 @@ async def send_otp(
     user = row_to_dict(user_row)
     if not user.get("email"):
         raise HTTPException(status_code=400, detail="Email address is required for verification.")
+
+    if not is_email_configured():
+        raise HTTPException(
+            status_code=500,
+            detail="Email service is not configured. Contact admin."
+        )
 
     generated_pin = generate_otp()
     otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
