@@ -5,9 +5,8 @@ from database import database
 from models import users
 from auth import get_current_user
 from utils import row_to_dict
-import random
+from routers.email import send_otp_email, generate_otp
 import os
-import resend
 
 router = APIRouter()
 
@@ -82,7 +81,7 @@ async def send_otp(current_user=Depends(get_current_user)):
     if not user.get("email"):
         raise HTTPException(status_code=400, detail="Email address is required for verification.")
 
-    generated_pin = str(random.randint(100000, 999999))
+    generated_pin = generate_otp()
     otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
 
     await database.execute(
@@ -95,32 +94,17 @@ async def send_otp(current_user=Depends(get_current_user)):
         )
     )
 
-    resend.api_key = os.getenv("RESEND_API_KEY")
-    if not resend.api_key:
-        raise HTTPException(status_code=500, detail="Email delivery configuration failure: Resend API key is missing.")
+    sent = await send_otp_email(
+        to_email=user["email"],
+        voter_name=user.get("full_name", "Voter"),
+        otp_code=generated_pin,
+    )
 
-    from_address = os.getenv("RESEND_FROM") or "ALM Election Security <onboarding@resend.dev>"
-
-    try:
-        response = resend.Emails.send({
-            "from": from_address,
-            "to": [user["email"]],
-            "subject": "Your ALM Election Access Code",
-            "html": f"""
-                <html>
-                  <body>
-                    <h1>ALM Voting Gate</h1>
-                    <p>Your secure identity verification passcode is below:</p>
-                    <div style=\"font-size:32px;font-weight:bold;margin:20px 0;\">{generated_pin}</div>
-                    <p>This passcode is single-use and will expire in 5 minutes.</p>
-                  </body>
-                </html>
-            """
-        })
-        print(f"[OTP] Sent verification code to {user['email']} via Resend API: {response}")
-    except Exception as error:
-        print(f"[OTP] Failed to send email to {user['email']} via Resend API: {error}")
-        raise HTTPException(status_code=500, detail=f"Email delivery configuration failure: {str(error)}")
+    if not sent:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send OTP email. Please contact admin."
+        )
 
     return {
         "message": "A one-time verification code was issued and emailed to your account."
