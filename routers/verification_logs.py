@@ -18,7 +18,7 @@ async def create_verification_log(body: VerificationLogCreate, current_user=Depe
                 voter_id=current_user["id"],
                 result=body.result,
                 distance=body.distance,
-                selfie_url=body.selfie_image_url,
+                upload_url=body.upload_url,
             )
         )
         return {"success": True}
@@ -36,7 +36,7 @@ async def list_verification_logs(admin=Depends(get_current_admin)):
             users.c.photo_url.label("registration_photo_url"),
             verification_logs.c.result,
             verification_logs.c.distance,
-            verification_logs.c.selfie_url,
+            verification_logs.c.upload_url.label("upload_url"),
             verification_logs.c.created_at,
         ).select_from(
             verification_logs.join(users, verification_logs.c.voter_id == users.c.id)

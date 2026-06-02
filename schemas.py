@@ -99,7 +99,7 @@ class SupportRequestCreate(BaseModel):
 class VerificationLogCreate(BaseModel):
     result: str
     distance: Optional[float] = None
-    selfie_image_url: Optional[str] = None
+    upload_url: Optional[str] = None
     voter_id: Optional[uuid.UUID] = None
 
 class SupportRequestResponse(BaseModel):

@@ -109,7 +109,7 @@ def ensure_verification_logs_table():
 
 
 def ensure_users_columns():
-    """Ensure the deployed users table has required optional columns for registration and face enrollment."""
+    """Ensure the deployed users table has required optional columns for registration and email OTP verification."""
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
         return
@@ -119,16 +119,16 @@ def ensure_users_columns():
     with engine.begin() as connection:
         if "photo_url" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "photo_url" TEXT'))
-        if "face_descriptor" not in existing_columns:
-            connection.execute(text('ALTER TABLE "users" ADD COLUMN "face_descriptor" TEXT'))
         if "verified_by_admin" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "verified_by_admin" BOOLEAN DEFAULT FALSE'))
         if "admin_verified_at" not in existing_columns:
             connection.execute(text('ALTER TABLE "users" ADD COLUMN "admin_verified_at" TIMESTAMP NULL'))
-        if "selfie_verified" not in existing_columns:
-            connection.execute(text('ALTER TABLE "users" ADD COLUMN "selfie_verified" BOOLEAN DEFAULT FALSE'))
-        if "selfie_verified_at" not in existing_columns:
-            connection.execute(text('ALTER TABLE "users" ADD COLUMN "selfie_verified_at" TIMESTAMP NULL'))
+        if "otp_verified" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "otp_verified" BOOLEAN DEFAULT FALSE'))
+        if "otp_code" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "otp_code" TEXT'))
+        if "otp_expires_at" not in existing_columns:
+            connection.execute(text('ALTER TABLE "users" ADD COLUMN "otp_expires_at" TIMESTAMP NULL'))
         if "member_id" in existing_columns:
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" DROP NOT NULL'))
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" SET DEFAULT NULL'))
