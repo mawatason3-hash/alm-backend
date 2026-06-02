@@ -4,6 +4,7 @@ from models import users, votes, audit_logs
 from schemas import StatsResponse
 from auth import get_current_admin
 from utils import rows_to_list
+from routers.email import send_otp_email, generate_otp
 import sqlalchemy as sa
 import uuid
 
@@ -98,6 +99,36 @@ async def get_audit_log(
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@router.get("/test-email")
+async def test_email(admin=Depends(get_current_admin)):
+    """Test email configuration by sending a test OTP email"""
+    try:
+        test_otp = generate_otp()
+        success = await send_otp_email(
+            to_email=admin["email"],
+            voter_name=admin["full_name"],
+            otp_code=test_otp
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Test email sent to {admin['email']}",
+                "test_otp": test_otp
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to send test email. Check Gmail configuration.",
+                "error": "Email service returned False"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": "Error sending test email",
+            "error": str(e)
+        }
+
 @router.post("/seed")
 async def seed_admin():
     try:
@@ -121,3 +152,4 @@ async def seed_admin():
         return {"message": "Admin created: admin@alm.org / Admin@2024"}
     except Exception as e:
         raise HTTPException(500, str(e))
+
