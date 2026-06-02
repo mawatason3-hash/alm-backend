@@ -121,3 +121,15 @@ async def seed_admin():
         return {"message": "Admin created: admin@alm.org / Admin@2024"}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@router.post("/test-email")
+async def test_email(admin=Depends(get_current_admin)):
+    try:
+        from routers.email import send_otp_email
+        result = await send_otp_email(admin["email"], "TEST123")
+        if result:
+            return {"success": True, "message": f"Test email sent to {admin['email']}"}
+        else:
+            return {"success": False, "message": "Failed to send test email"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
