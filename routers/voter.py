@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from database import database
 from models import users
@@ -73,7 +73,6 @@ async def get_verification_status(
 
 @router.post("/send-otp")
 async def send_otp(
-    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user)
 ):
     user_row = await database.fetch_one(users.select().where(users.c.id == current_user["id"]))
@@ -103,15 +102,20 @@ async def send_otp(
         )
     )
 
-    background_tasks.add_task(
-        send_otp_email,
-        user["email"],
-        user.get("full_name", "Voter"),
-        generated_pin,
+    sent = await send_otp_email(
+        to_email=user["email"],
+        voter_name=user.get("full_name", "Voter"),
+        otp_code=generated_pin,
     )
 
+    if not sent:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send OTP email. Please contact admin."
+        )
+
     return {
-        "message": "A one-time verification code was issued and will be emailed to your account shortly."
+        "message": "A one-time verification code was issued and emailed to your account."
     }
 
 @router.post("/verify-otp")
