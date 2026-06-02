@@ -4,7 +4,7 @@ import os
 import uuid
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Header, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from database import database
 from models import users
@@ -42,7 +42,7 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def _get_current_user_from_token(token: str):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
@@ -66,8 +66,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return row_to_dict(user)
 
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    return await _get_current_user_from_token(token)
+
+async def get_current_user_token(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None),
+):
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await _get_current_user_from_token(token)
+
 async def get_current_admin(
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user_token)
 ):
     if current_user["role"] != "admin":
         raise HTTPException(
