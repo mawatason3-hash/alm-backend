@@ -124,38 +124,23 @@ async def seed_admin():
 
 @router.get("/admin/test-email")
 async def test_email():
-    """Public test endpoint - remove auth for testing"""
-    try:
-        from routers.email import (
-            send_otp_email,
-            GMAIL_USER,
-            GMAIL_APP_PASSWORD,
-        )
+    from routers.email import send_otp_email, BREVO_API_KEY
 
-        if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-            return {
-                "email_sent": False,
-                "error": "Gmail credentials not configured",
-                "gmail_user": GMAIL_USER or "NOT SET",
-                "password_set": bool(GMAIL_APP_PASSWORD),
-            }
-
-        success = await send_otp_email(
-            to_email=GMAIL_USER,
-            voter_name="Test User",
-            otp_code="123456",
-        )
-
-        return {
-            "email_sent": success,
-            "gmail_user": GMAIL_USER,
-            "password_set": bool(GMAIL_APP_PASSWORD),
-            "message": "Check your Gmail inbox" if success else "Send failed - check Railway logs",
-        }
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    if not BREVO_API_KEY:
         return {
             "email_sent": False,
-            "error": str(e),
+            "error": "BREVO_API_KEY not set in Railway",
+            "configured": False,
         }
+
+    success = await send_otp_email(
+        to_email="kamarasolomon164@gmail.com",
+        voter_name="Test User",
+        otp_code="123456"
+    )
+
+    return {
+        "email_sent": success,
+        "configured": bool(BREVO_API_KEY),
+        "message": "Check your Gmail inbox" if success else "Failed - check Railway logs",
+    }
