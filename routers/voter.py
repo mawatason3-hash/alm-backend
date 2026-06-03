@@ -5,8 +5,7 @@ from database import database
 from models import users
 from auth import get_current_user
 from utils import row_to_dict
-from routers.email import GMAIL_USER, GMAIL_APP_PASSWORD, send_otp_email, generate_otp, is_email_configured
-import os
+from routers.email import send_otp_email, generate_otp
 
 router = APIRouter()
 
@@ -83,12 +82,6 @@ async def send_otp(
     if not user.get("email"):
         raise HTTPException(status_code=400, detail="Email address is required for verification.")
 
-    if not is_email_configured():
-        raise HTTPException(
-            status_code=500,
-            detail="Email service is not configured. Contact admin."
-        )
-
     generated_pin = generate_otp()
     otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
 
@@ -155,22 +148,3 @@ async def verify_otp(body: VerifyOtpRequest, current_user=Depends(get_current_us
         "message": "Email verified. You can now proceed to vote."
     }
 
-@router.get("/admin/test-email")
-async def test_email():
-    """Public test endpoint - remove auth for testing"""
-    try:
-        success = await send_otp_email(
-            to_email=GMAIL_USER,
-            voter_name="Test User",
-            otp_code="123456",
-        )
-
-        return {
-            "email_sent": success,
-            "gmail_user": GMAIL_USER,
-            "gmail_configured": bool(GMAIL_USER and GMAIL_APP_PASSWORD),
-        }
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"email_sent": False, "error": str(e)}
