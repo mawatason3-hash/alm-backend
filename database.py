@@ -58,6 +58,7 @@ async def disconnect_db():
 def create_tables():
     metadata.create_all(engine)
     ensure_users_columns()
+    ensure_candidates_columns()
     ensure_verification_logs_table()
     ensure_vote_choices_table()
 
@@ -138,3 +139,16 @@ def ensure_users_columns():
         if "member_id" in existing_columns:
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" DROP NOT NULL'))
             connection.execute(text('ALTER TABLE "users" ALTER COLUMN "member_id" SET DEFAULT NULL'))
+
+
+def ensure_candidates_columns():
+    """Ensure the candidates table has required columns for candidate management."""
+    inspector = inspect(engine)
+    if "candidates" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("candidates")}
+
+    with engine.begin() as connection:
+        if "photo_url" not in existing_columns:
+            connection.execute(text('ALTER TABLE "candidates" ADD COLUMN "photo_url" TEXT DEFAULT NULL'))

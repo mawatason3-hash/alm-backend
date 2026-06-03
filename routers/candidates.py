@@ -86,6 +86,7 @@ async def add_candidate(
             team_id=team_id,
             position_id=position_id,
             full_name=full_name,
+            photo_url=profile_url,
             profile_picture=profile_url,
             party_affiliation=party_affiliation or None,
             previous_leadership=previous_leadership or None,

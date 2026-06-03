@@ -28,19 +28,21 @@ async def create_verification_log(body: VerificationLogCreate, current_user=Depe
 @router.get("/")
 async def list_verification_logs(admin=Depends(get_current_admin)):
     try:
-        query = sa.select(
-            verification_logs.c.id,
-            verification_logs.c.voter_id,
-            users.c.full_name.label("voter_name"),
-            users.c.email.label("voter_email"),
-            users.c.photo_url.label("registration_photo_url"),
-            verification_logs.c.result,
-            verification_logs.c.distance,
-            verification_logs.c.upload_url.label("upload_url"),
-            verification_logs.c.created_at,
-        ).select_from(
-            verification_logs.outerjoin(users, verification_logs.c.voter_id == users.c.id)
-        ).order_by(verification_logs.c.created_at.desc())
+        query = sa.text("""
+            SELECT
+                u.id as voter_id,
+                u.full_name as voter_name,
+                u.email as voter_email,
+                CASE 
+                    WHEN u.verified_by_admin = true THEN 'Admin Approved'
+                    WHEN u.otp_verified = true THEN 'Email OTP'
+                    ELSE 'Unverified'
+                END as verification_method,
+                COALESCE(u.admin_verified_at, u.otp_verified_at) as verification_timestamp
+            FROM users u
+            WHERE u.verified_by_admin = true OR u.otp_verified = true
+            ORDER BY COALESCE(u.admin_verified_at, u.otp_verified_at) DESC
+        """)
 
         rows = rows_to_list(await database.fetch_all(query))
         return rows
