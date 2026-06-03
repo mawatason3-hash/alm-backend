@@ -5,7 +5,7 @@ from upload_helper import upload_image
 router = APIRouter()
 
 @router.post('/image')
-async def upload_image(file: UploadFile = File(...), admin=Depends(get_current_admin)):
+async def save_image(file: UploadFile = File(...), admin=Depends(get_current_admin)):
     if not file.content_type or not file.content_type.startswith('image/'):
         raise HTTPException(400, 'Only image files are supported for upload.')
 
