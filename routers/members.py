@@ -83,6 +83,10 @@ async def update_member(member_id: str, body: AdminUpdateMember = Body(...), adm
             update_data['member_id'] = body.member_id
         if body.is_approved is not None:
             update_data['is_approved'] = body.is_approved
+        if body.role is not None:
+            if body.role not in ['member', 'admin']:
+                raise HTTPException(400, 'Invalid role. Must be member or admin')
+            update_data['role'] = body.role
 
         if not update_data:
             raise HTTPException(400, 'No fields to update')

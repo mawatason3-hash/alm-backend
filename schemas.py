@@ -181,3 +181,4 @@ class AdminUpdateMember(BaseModel):
     member_id: Optional[str] = None
     is_approved: Optional[bool] = None
     photo_url: Optional[str] = None
+    role: Optional[str] = None

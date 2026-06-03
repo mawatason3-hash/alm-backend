@@ -40,23 +40,35 @@ async def get_vote_choices_by_voter(current_user=Depends(get_current_user)):
         SELECT
             u.full_name as voter_name,
             u.email as voter_email,
-            json_agg(json_build_object(
-                'position', p.title,
-                'candidate_name', c.full_name,
-                'team_name', t.name,
-                'running_mate', c.running_mate_name,
-                'voted_at', v.voted_at
-            ) ORDER BY v.voted_at) AS choices
+            p.title as position,
+            c.full_name as candidate_name,
+            t.name as team_name,
+            c.running_mate_name as running_mate,
+            v.voted_at
         FROM votes v
         JOIN users u ON v.voter_id = u.id
         JOIN candidates c ON v.candidate_id = c.id
         JOIN positions p ON v.position_id = p.id
         JOIN teams t ON v.team_id = t.id
-        GROUP BY u.id, u.full_name, u.email
-        ORDER BY u.full_name
+        ORDER BY u.full_name, v.voted_at
         """
     )
-    return [dict(row) for row in rows]
+    
+    # Group by voter in memory
+    voter_map = {}
+    for row in rows:
+        voter_key = (row['voter_name'], row['voter_email'])
+        if voter_key not in voter_map:
+            voter_map[voter_key] = {'voter_name': row['voter_name'], 'voter_email': row['voter_email'], 'choices': []}
+        voter_map[voter_key]['choices'].append({
+            'position': row['position'],
+            'candidate_name': row['candidate_name'],
+            'team_name': row['team_name'],
+            'running_mate': row['running_mate'],
+            'voted_at': row['voted_at']
+        })
+    
+    return list(voter_map.values())
 
 @router.get("/voter/my-votes")
 async def get_my_vote_choices(current_user=Depends(get_current_user)):
