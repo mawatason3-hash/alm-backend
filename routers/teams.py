@@ -262,14 +262,12 @@ async def delete_team(
     admin=Depends(get_current_admin)
 ):
     try:
-        count = await database.fetch_one(
-            sa.select(sa.func.count())
-            .where(candidates.c.team_id == team_id)
+        await database.execute(
+            candidates.delete().where(candidates.c.team_id == team_id)
         )
-        if count[0] > 0:
-            raise HTTPException(
-                400, "Remove all candidates from this team first"
-            )
+        await database.execute(
+            positions.delete().where(positions.c.team_id == team_id)
+        )
         await database.execute(
             teams.delete().where(teams.c.id == team_id)
         )
@@ -280,7 +278,5 @@ async def delete_team(
             metadata={"team_id": team_id}
         ))
         return {"success": True}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(500, str(e))
