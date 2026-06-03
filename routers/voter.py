@@ -156,15 +156,21 @@ async def verify_otp(body: VerifyOtpRequest, current_user=Depends(get_current_us
     }
 
 @router.get("/admin/test-email")
-async def test_email(current_user=Depends(get_current_user)):
-    success = await send_otp_email(
-        to_email=GMAIL_USER,
-        voter_name="Test User",
-        otp_code="123456"
-    )
+async def test_email():
+    """Public test endpoint - remove auth for testing"""
+    try:
+        success = await send_otp_email(
+            to_email=GMAIL_USER,
+            voter_name="Test User",
+            otp_code="123456",
+        )
 
-    return {
-        "email_sent": success,
-        "gmail_user": GMAIL_USER,
-        "gmail_configured": bool(GMAIL_USER and GMAIL_APP_PASSWORD)
-    }
+        return {
+            "email_sent": success,
+            "gmail_user": GMAIL_USER,
+            "gmail_configured": bool(GMAIL_USER and GMAIL_APP_PASSWORD),
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"email_sent": False, "error": str(e)}

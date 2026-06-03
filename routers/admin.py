@@ -122,14 +122,40 @@ async def seed_admin():
     except Exception as e:
         raise HTTPException(500, str(e))
 
-@router.get("/test-email")
-async def test_email(admin=Depends(get_current_admin)):
+@router.get("/admin/test-email")
+async def test_email():
+    """Public test endpoint - remove auth for testing"""
     try:
-        from routers.email import send_otp_email
-        result = await send_otp_email(admin["email"], "TEST123")
-        if result:
-            return {"success": True, "message": f"Test email sent to {admin['email']}"}
-        else:
-            return {"success": False, "message": "Failed to send test email"}
+        from routers.email import (
+            send_otp_email,
+            GMAIL_USER,
+            GMAIL_APP_PASSWORD,
+        )
+
+        if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+            return {
+                "email_sent": False,
+                "error": "Gmail credentials not configured",
+                "gmail_user": GMAIL_USER or "NOT SET",
+                "password_set": bool(GMAIL_APP_PASSWORD),
+            }
+
+        success = await send_otp_email(
+            to_email=GMAIL_USER,
+            voter_name="Test User",
+            otp_code="123456",
+        )
+
+        return {
+            "email_sent": success,
+            "gmail_user": GMAIL_USER,
+            "password_set": bool(GMAIL_APP_PASSWORD),
+            "message": "Check your Gmail inbox" if success else "Send failed - check Railway logs",
+        }
     except Exception as e:
-        raise HTTPException(500, str(e))
+        import traceback
+        traceback.print_exc()
+        return {
+            "email_sent": False,
+            "error": str(e),
+        }
