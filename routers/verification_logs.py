@@ -39,7 +39,7 @@ async def list_verification_logs(admin=Depends(get_current_admin)):
             verification_logs.c.upload_url.label("upload_url"),
             verification_logs.c.created_at,
         ).select_from(
-            verification_logs.join(users, verification_logs.c.voter_id == users.c.id)
+            verification_logs.outerjoin(users, verification_logs.c.voter_id == users.c.id)
         ).order_by(verification_logs.c.created_at.desc())
 
         rows = rows_to_list(await database.fetch_all(query))
